@@ -1,0 +1,10 @@
+# 数据与密钥：整个 data/ 都不进仓库（含 config.json 里的 admin token）
+data/
+logs/
+__pycache__/
+*.py[cod]
+.venv/
+.DS_Store
+
+# 论文 PDF 抽出来的工作文本，按需用 refs/ 里的说明重新生成
+refs/2609.23969v1.txt

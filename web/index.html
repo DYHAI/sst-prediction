@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#062b4a">
+<title>南海海温预测擂台</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<div class="sea-bg" aria-hidden="true">
+  <svg class="deco starfish s1" viewBox="0 0 100 100"><use href="#starfish"/></svg>
+  <svg class="deco shell sh1" viewBox="0 0 100 100"><use href="#shell"/></svg>
+  <svg class="deco starfish s2" viewBox="0 0 100 100"><use href="#starfish"/></svg>
+  <svg class="deco shell sh2" viewBox="0 0 100 100"><use href="#shell"/></svg>
+  <svg class="deco bubble b1" viewBox="0 0 40 40"><use href="#bubble"/></svg>
+  <svg class="deco bubble b2" viewBox="0 0 40 40"><use href="#bubble"/></svg>
+</div>
+
+<svg style="display:none" aria-hidden="true">
+  <symbol id="starfish" viewBox="0 0 100 100">
+    <path d="M50 6c3 0 5 2 6 6l8 24 25 1c4 0 6 3 6 6 0 2-1 4-4 6L70 66l8 25c1 4-1 7-4 8-2 1-4 0-6-2L50 82 32 97c-2 2-5 3-7 2-3-1-5-4-4-8l8-25L9 49c-3-2-4-4-4-6 0-3 2-6 6-6l25-1 8-24c1-4 3-6 6-6z"
+          fill="#f6a5a0" stroke="#d97a72" stroke-width="2.5" stroke-linejoin="round"/>
+    <circle cx="50" cy="45" r="4" fill="#d97a72" opacity=".55"/>
+    <circle cx="38" cy="55" r="2.6" fill="#d97a72" opacity=".45"/>
+    <circle cx="62" cy="55" r="2.6" fill="#d97a72" opacity=".45"/>
+  </symbol>
+  <symbol id="shell" viewBox="0 0 100 100">
+    <path d="M50 12c20 0 36 20 36 42 0 12-8 20-18 22H32c-10-2-18-10-18-22 0-22 16-42 36-42z"
+          fill="#ffe0c2" stroke="#e0ab7c" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="M50 14v60M38 20c-6 12-8 34-6 54M62 20c6 12 8 34 6 54M26 34c-3 10-3 28 0 40M74 34c3 10 3 28 0 40"
+          stroke="#e0ab7c" stroke-width="2" fill="none" stroke-linecap="round"/>
+  </symbol>
+  <symbol id="bubble" viewBox="0 0 40 40">
+    <circle cx="20" cy="20" r="17" fill="rgba(255,255,255,.10)" stroke="rgba(255,255,255,.35)" stroke-width="2"/>
+  </symbol>
+</svg>
+
+<header class="top">
+  <div class="waves" aria-hidden="true">
+    <svg viewBox="0 0 1440 90" preserveAspectRatio="none">
+      <path d="M0 60 C 180 20, 360 20, 540 55 C 720 90, 900 90, 1080 55 C 1260 20, 1350 30, 1440 45 L1440 90 L0 90 Z" fill="#f3f9fc"/>
+    </svg>
+  </div>
+  <div class="wrap">
+    <h1>南海海温预测擂台</h1>
+    <p class="sub">预测南海 7 个海区未来 1 / 3 / 5 天的日均海表温度 —— 和 HYCOM、GFS、CFSv2，以及本站模型同台比分。</p>
+    <nav class="tabs" id="tabs">
+      <button data-tab="submit" class="on">提交预测</button>
+      <button data-tab="board">排行榜</button>
+      <button data-tab="maps">海温图</button>
+      <button data-tab="about">方法与文献</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ============================ 提交 ============================ -->
+  <section id="tab-submit">
+    <div class="card" id="identity">
+      <div class="row between">
+        <div>
+          <strong>你是哪位</strong>
+          <p class="muted small">填个名字会在这台机器上生成一个私钥（token），以后提交都用它，不需要邮箱。</p>
+        </div>
+        <div id="who-box"></div>
+      </div>
+      <div id="register-form" class="row hidden">
+        <input id="reg-name" placeholder="你的名字 / 队伍名" maxlength="40">
+        <input id="reg-affil" placeholder="单位或一句话介绍（可空）" maxlength="80">
+        <button id="reg-btn" class="primary">开始</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row between">
+        <strong>手动填写</strong>
+        <span class="muted small" id="truth-hint"></span>
+      </div>
+      <p class="muted small">
+        时效 h 天的意思：必须在<b>目标日往前 h 天的 00:00 UTC（北京 08:00）之前</b>提交，过点不能改。
+        单位 °C，可以留空。
+      </p>
+      <div id="rounds"></div>
+      <div class="row right"><button id="save-btn" class="primary">保存全部</button></div>
+      <div id="save-msg" class="msg"></div>
+    </div>
+
+    <div class="card" id="upload-card">
+      <strong>上传整个预报产品（推荐给模型玩家）</strong>
+      <p class="muted small">
+        直接把你模型的输出丢过来，我们负责解析、按海区聚合、自动评测、自动上榜单。
+        支持 <b>CSV</b>（海区表或网格场）、<b>NetCDF</b>（.nc）、<b>Parquet</b>。
+        网格文件需要 <code>lat / lon / sst</code> 三列（或三维数组），时空列名常见写法都认。
+        时区统一按 UTC 日期；温度写开尔文或摄氏度都可以，自动识别。
+      </p>
+      <div class="row">
+        <input id="up-name" placeholder="模型 / 队伍名（第一次提交时填）" maxlength="40">
+        <input id="up-affil" placeholder="单位（可空）" maxlength="80">
+        <select id="up-horizon">
+          <option value="">时效：按文件推断</option>
+          <option value="1">统一按 1 天</option>
+          <option value="3">统一按 3 天</option>
+          <option value="5">统一按 5 天</option>
+        </select>
+        <input id="up-file" type="file" accept=".csv,.txt,.tsv,.nc,.nc4,.cdf,.parquet,.pq">
+        <button id="up-btn" class="primary">上传并评测</button>
+      </div>
+      <div id="up-msg" class="msg"></div>
+      <div id="up-result"></div>
+      <details class="muted small" style="margin-top:10px">
+        <summary>命令行 / API 提交方式</summary>
+        <pre class="code"># 首次：登记名字，会打印 token
+python3 -m tools.submit_file --name "我的模型" --file pred.csv
+
+# 以后每天自动提交
+python3 -m tools.submit_file --token &lt;TOKEN&gt; --file pred.nc
+
+# 接口方式（可接进你的训练脚本）
+curl -F name=我的模型 -F token=&lt;TOKEN&gt; -F file=@pred.parquet \
+     https://sst.playai.org.cn/api/upload
+
+# 海区表 CSV 长这样
+target_date,horizon,region,value
+2026-10-08,3,北部湾,29.85
+2026-10-08,3,xisha,30.20
+
+# 网格 CSV / NetCDF / Parquet 长这样（列名）
+time,lat,lon,sst</pre>
+      </details>
+    </div>
+
+    <div class="card" id="region-card">
+      <strong>7 个海区的经纬度范围</strong>
+      <p class="muted small">结算时取每个盒子内所有有效海格点的 cos(纬度) 加权平均。海温图上黑框就是这七个范围。</p>
+      <div class="scroll"><table id="region-table"></table></div>
+    </div>
+
+    <div class="card hidden" id="my-card">
+      <div class="row between">
+        <strong>我的成绩</strong>
+        <span class="muted small" id="my-summary"></span>
+      </div>
+      <div id="my-detail"></div>
+    </div>
+  </section>
+
+  <!-- ============================ 排行榜 ============================ -->
+  <section id="tab-board" class="hidden">
+    <div class="card">
+      <div class="row between">
+        <strong>排行榜</strong>
+        <select id="window">
+          <option value="30">最近 30 天</option>
+          <option value="60" selected>最近 60 天</option>
+          <option value="180">最近 180 天</option>
+          <option value="0">全部</option>
+        </select>
+      </div>
+      <p class="muted small">
+        综合分 = 100 × (0.45×准确度 + 0.20×稳定性 + 0.35×命中率)。
+        <b>基准是逐格取的</b>：同一海区、同一时效下表现最好的官方产品（HYCOM / GFS / CFSv2）
+        的 MAE，和它打平得 0.50。榜单只比较<b>所有官方产品都有数据的那几天</b>，
+        避免"样本少的人更准"。
+      </p>
+      <div class="scroll"><table id="board-table"></table></div>
+    </div>
+    <div class="card">
+      <strong>每个海区·时效的基准线</strong>
+      <p class="muted small">这是"标准"的具体数字。谁想拿高分，就得在这些 MAE 上更小。</p>
+      <div class="scroll"><table id="ref-table"></table></div>
+    </div>
+  </section>
+
+  <!-- ============================ 海温图 ============================ -->
+  <section id="tab-maps" class="hidden">
+    <div class="card">
+      <div class="row between">
+        <strong>海温场：真值 vs 本站模型</strong>
+        <span class="muted small">黑框 = 7 个竞猜海区的边界</span>
+      </div>
+      <div class="row">
+        <select id="map-kind">
+          <option value="truth">OISST 真值</option>
+          <option value="model">本站模型预报</option>
+          <option value="diff">误差（模型 − 真值）</option>
+        </select>
+        <input id="map-date" type="date">
+        <select id="map-horizon">
+          <option value="1">时效 1 天</option>
+          <option value="3" selected>时效 3 天</option>
+          <option value="5">时效 5 天</option>
+        </select>
+        <button id="map-btn" class="primary">出图</button>
+      </div>
+      <div id="map-msg" class="msg"></div>
+      <div class="map-box"><img id="map-img" alt="南海海表温度图"></div>
+      <p class="muted small" id="map-caption"></p>
+    </div>
+
+    <div class="card">
+      <strong>官方产品在同一时段的误差对比</strong>
+      <div class="scroll"><table id="prod-err-table"></table></div>
+    </div>
+  </section>
+
+  <!-- ============================ 方法 ============================ -->
+  <section id="tab-about" class="hidden">
+    <div class="card" id="about-body"></div>
+    <div class="card">
+      <strong>海洋 AI 预报模型（我们参考的对象）</strong>
+      <p class="muted small">
+        这些是目前最有代表性的数据驱动预报模型。它们需要大规模 GPU 训练和多年的再分析数据，
+        本站跑不动，但它们的思路决定了我们把这个擂台做成什么样子——
+        <b>谁都可以把自己的模型接进来比</b>。上传入口就在「提交预测」页。
+      </p>
+      <div id="ai-models"></div>
+    </div>
+    <div class="card" id="model-report-card">
+      <strong>各模型的独立验证结果</strong>
+      <p class="muted small">下面每个数字都能用仓库里的脚本复现：<code>tools/validate_model.py</code>、<code>tools/train_postproc.py</code>、<code>tools/train_unet.py</code>。</p>
+      <div id="model-report"></div>
+    </div>
+    <div class="card" id="local-models-card">
+      <strong>本站模型清单</strong>
+      <div id="local-models"></div>
+    </div>
+    <div class="card" id="validation-card">
+      <strong>本站模型的样本外验证</strong>
+      <div id="validation"></div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="wrap">
+  <div class="row between">
+    <span class="muted small" id="footer"></span>
+    <span class="deco-foot">
+      <svg class="deco" viewBox="0 0 100 100"><use href="#starfish"/></svg>
+      <svg class="deco" viewBox="0 0 100 100"><use href="#shell"/></svg>
+      <svg class="deco" viewBox="0 0 100 100"><use href="#starfish"/></svg>
+    </span>
+  </div>
+</footer>
+
+<script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.playai.sst.caffeinate</string>
+
+  <!-- 这台机器的 pmset 是 1 分钟就进系统睡眠，网站会跟着挂掉。
+       caffeinate -s 阻止系统睡眠（接电源时），不需要 sudo 改 pmset。 -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/caffeinate</string>
+    <string>-s</string>
+  </array>
+
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/dingding/Library/Logs/sst-caffeinate.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/dingding/Library/Logs/sst-caffeinate.err.log</string>
+</dict>
+</plist>
