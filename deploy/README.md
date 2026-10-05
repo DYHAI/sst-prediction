@@ -135,11 +135,23 @@ credentials-file: /Users/dingding/.cloudflared/3db73b03-9aca-447a-b95b-7c4808394
 protocol: http2          # 国内 UDP 7844 常被限速，走 TCP 上的 http2 更稳
 
 ingress:
-  # 如果和主站 mpa 共用同一个隧道，只需要在已有的 ingress 里加这一条
   - hostname: sst.playai.org.cn
+    service: http://127.0.0.1:8770
+  # 总入口页：同一个进程、同一个端口，靠 Host 头分站
+  - hostname: www.playai.org.cn
+    service: http://127.0.0.1:8770
+  - hostname: playai.org.cn
     service: http://127.0.0.1:8770
   - service: http_status:404
 ```
+
+对应地，`app/server.py` 里用 `PORTAL_HOSTS` 判断 Host：
+`www.playai.org.cn` 和 `playai.org.cn` 给总入口页（`web/portal/`），
+其它域名给海温擂台。加新站点只需要在隧道里加一行 + 在应用里加一个分支。
+
+> 本机验证小插曲：这台 Mac 开着 Clash（`https_proxy=127.0.0.1:7890`），
+> 新加的 `www` / 顶级域名一开始走代理会失败（`SSL_ERROR_SYSCALL`），
+> 但 `curl --noproxy '*'` 正常、手机上访问也正常——是本地代理规则的问题，不是部署问题。
 
 > 这台机器上跑的是**独立的 `sst` 隧道**（ID `3db73b03-…`），和主站那条 `mpa`
 > 隧道（跑在另一台机器上）互不干扰。DNS 里 `sst.playai.org.cn` 是一条精确记录，

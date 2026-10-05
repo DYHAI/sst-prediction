@@ -533,7 +533,9 @@ async function renderModelReport() {
   }
 }
 
-$("#footer").innerHTML = `数据源 NOAA OISST v2.1 · HYCOM ESPC-D-V02 · NCEP GFS · NCEP CFSv2
+$("#footer").innerHTML = `<a href="https://www.playai.org.cn/">← playai.org.cn 总入口</a>
+  ｜数据源 NOAA OISST v2.1 · HYCOM ESPC-D-V02 · NCEP GFS · NCEP CFSv2
+  ｜<a href="https://github.com/DYHAI/sst-prediction">源码</a>
   ｜真值滞后约 1–2 天，结算自动完成`;
 
 // ------------------------------------------------------------------ 启动

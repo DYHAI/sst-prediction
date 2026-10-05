@@ -3,7 +3,10 @@
 一个可以上线的海表温度（SST）预测竞赛网站：玩家提交南海 7 个海区、未来 1/3/5 天的
 日均海温预测，和三个官方预报产品同台比分，用 NOAA OISST 真实观测结算。
 
-**线上地址：<https://sst.playai.org.cn>**
+**线上地址：<https://sst.playai.org.cn>**　｜　源码：<https://github.com/DYHAI/sst-prediction>
+
+同一台机器上还托管了总入口页 **<https://www.playai.org.cn>**（含 `playai.org.cn` 顶级域名）：
+一个进程、一个端口，靠 Host 头分站——`www`/apex 给入口页，`sst` 给海温擂台。
 
 思路来自 Crosier (2026) 关于 Kalshi 温度预测市场战胜 NBM 的研究——把这套
 「人群/市场 vs 官方预报产品阶梯」的方法搬到海洋上，把下注价格换成直接提交数字。

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#04203a">
+<title>playai.org.cn · 我们的产品</title>
+<meta name="description" content="playai.org.cn 上的几个小产品：多模型圆桌分析、南海海温预测擂台。">
+<link rel="stylesheet" href="/portal.css">
+</head>
+<body>
+
+<div class="glow" aria-hidden="true"></div>
+
+<header class="hero">
+  <div class="wrap">
+    <p class="eyebrow">playai.org.cn</p>
+    <h1>几个能直接用的小东西</h1>
+    <p class="lede">都是自己跑在一台 Mac 上的小服务，通过 Cloudflare 隧道对外，
+      应用本身只监听本机，不占公网端口。下面每个都能点进去用。</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <a class="card live" href="https://sst.playai.org.cn/">
+    <div class="head">
+      <span class="dot"></span>
+      <h2>南海海温预测擂台</h2>
+      <span class="tag">在线</span>
+    </div>
+    <p>预测南海 7 个海区未来 <b>1 / 3 / 5 天</b>的日均海表温度，和
+      <b>HYCOM · GFS · CFSv2</b> 三个官方预报产品同台比分，
+      用 NOAA OISST 真实观测自动结算。</p>
+    <ul class="facts">
+      <li>真值：NOAA OISST v2.1（任何人都能下载复现）</li>
+      <li>基准：逐格取最强的官方产品，和它打平得 50 分</li>
+      <li>可以上传自己的模型：<b>CSV / NetCDF / Parquet</b>，自动解析、评测、上榜</li>
+      <li>站内自己训了 LIM、XGBoost、CatBoost、LightGBM、多源后处理、U-Net 场订正</li>
+    </ul>
+    <span class="url">sst.playai.org.cn</span>
+  </a>
+
+  <a class="card live" href="https://mpa.playai.org.cn/">
+    <div class="head">
+      <span class="dot"></span>
+      <h2>人生参谋</h2>
+      <span class="tag">在线</span>
+    </div>
+    <p>把一个真实问题丢给 <b>12 个大模型 × 12 个角色</b>，让它们圆桌讨论，
+      最后收敛成一份带多视角对照的最终报告。单次成本约 ¥0.03。</p>
+    <ul class="facts">
+      <li>多模型并行 + 角色分工 + 收敛阶段，避免单一模型的盲区</li>
+      <li>适合决策类问题：要不要做、怎么做、有哪些反对意见</li>
+      <li>长任务异步化，手机锁屏也不会中断</li>
+    </ul>
+    <span class="url">mpa.playai.org.cn</span>
+  </a>
+
+  <div class="card off">
+    <div class="head">
+      <span class="dot off"></span>
+      <h2>Connect X 对战</h2>
+      <span class="tag off">已停</span>
+    </div>
+    <p>AlphaZero 风格的 PUCT MCTS 智能体，Kaggle 榜单 <b>第 4 / 186</b>，
+      最好一次读数 1274.2（一度第 1）。网络对战服务目前已下线，模型与训练管线仍在。</p>
+    <span class="url">github.com/DYHAI/connectx-alphazero</span>
+  </div>
+</main>
+
+<footer class="wrap">
+  <div class="links">
+    <a href="https://github.com/DYHAI/sst-prediction">sst-prediction 源码</a>
+    <a href="https://github.com/DYHAI/multi-perspective-advisor">multi-perspective-advisor 源码</a>
+    <a href="https://github.com/DYHAI">全部仓库</a>
+  </div>
+  <p class="muted">kallan · playai.org.cn</p>
+</footer>
+
+</body>
+</html>

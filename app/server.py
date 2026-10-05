@@ -26,6 +26,11 @@ from . import regions as R
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WEB = os.path.join(BASE, "web")
+PORTAL = os.path.join(WEB, "portal")
+
+# 这些域名打过来时给"总入口"页，其余域名给海温擂台。
+# 和主站同一套约定：一个进程、一个端口，靠 Host 头分站。
+PORTAL_HOSTS = {"www.playai.org.cn", "playai.org.cn"}
 
 CFG = config.load()
 START = time.time()
@@ -117,8 +122,13 @@ class Handler(BaseHTTPRequestHandler):
                 fields[name] = content.decode("utf-8", "replace")
         return fields, files
 
-    def _static(self, path: str):
+    def _static(self, path: str, root: str | None = None):
+        root = root or WEB
         rel = path.lstrip("/") or "index.html"
+        if root == PORTAL:
+            # 总入口只放行自己的两个静态文件，其余路径退回擂台站
+            if rel not in ("portal.css", "index.html", "favicon.ico"):
+                return self._send(302, b"", "text/plain", {"Location": "/"})
         # 只放行一个数据文件（模型验证结果），其余 data/ 一律不对外
         if rel == "data/model_validation.json":
             full = os.path.join(BASE, "data", "model_validation.json")
@@ -128,8 +138,8 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self._send(404, b"{}", "application/json; charset=utf-8")
             return
-        full = os.path.normpath(os.path.join(WEB, rel))
-        if not full.startswith(WEB) or not os.path.isfile(full):
+        full = os.path.normpath(os.path.join(root, rel))
+        if not full.startswith(root) or not os.path.isfile(full):
             self._send(404, b"not found", "text/plain; charset=utf-8")
             return
         ctype = mimetypes.guess_type(full)[0] or "application/octet-stream"
@@ -165,6 +175,16 @@ class Handler(BaseHTTPRequestHandler):
         path = u.path
         q = urllib.parse.parse_qs(u.query)
         q1 = {k: v[0] for k, v in q.items()}
+
+        host = (self.headers.get("Host") or "").split(":")[0].lower()
+        if host in PORTAL_HOSTS:
+            if path == "/healthz":
+                return self._json({"ok": True, "site": "portal"})
+            if path in ("/", ""):
+                return self._static("/index.html", PORTAL)
+            if path.startswith("/portal.css"):
+                return self._static("/portal.css", PORTAL)
+            return self._send(404, b"not found", "text/plain; charset=utf-8")
 
         if path == "/api/meta":
             return self._json(self._meta())
