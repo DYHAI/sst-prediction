@@ -30,8 +30,8 @@ from pathlib import Path
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 KILL_SWITCH = PROJECT_DIR / "data" / "openclaw_autoapprove.disabled"
-LOG_PATH = Path.home() / "Library" / "Logs" / "openclaw-autoapprove.log"
-OPENCLAW_BIN = "/opt/homebrew/bin/openclaw"
+LOG_PATH = Path(os.environ.get("OPENCLAW_AUTOAPPROVE_LOG", Path.home() / "Library" / "Logs" / "openclaw-autoapprove.log"))
+OPENCLAW_BIN = os.environ.get("OPENCLAW_BIN", "/opt/homebrew/bin/openclaw")
 
 # Control UI 首次连接是按 Fp 这个默认集合申请的：
 #   operator.admin / read / write / approvals / questions / pairing
