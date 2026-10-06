@@ -33,10 +33,18 @@ KILL_SWITCH = PROJECT_DIR / "data" / "openclaw_autoapprove.disabled"
 LOG_PATH = Path.home() / "Library" / "Logs" / "openclaw-autoapprove.log"
 OPENCLAW_BIN = "/opt/homebrew/bin/openclaw"
 
-# 只自动批准这些 scope。operator.admin 一律留人工处理，
-# 这样即使 token 泄漏，对方也拿不到改配置 / 装插件的能力。
+# Control UI 首次连接是按 Fp 这个默认集合申请的：
+#   operator.admin / read / write / approvals / questions / pairing
+# `openclaw devices approve` 是按请求原样批准，没法只批一部分，
+# 所以想让人进得来，就必须把这一整套都放行。
+#
+# 注意 operator.admin 的含义：能改配置、装插件（= 持久化）。
+# 但这不是主要风险面——agent 默认就是 full 文件/exec 权限，
+# 拿到 operator.write 已经等于能在这台 Mac 上跑命令了。
+# 真正的边界是 token 本身，见 deploy/README.md 的说明。
 AUTO_APPROVE_ROLES = {"operator"}
 AUTO_APPROVE_SCOPES = {
+    "operator.admin",
     "operator.read",
     "operator.write",
     "operator.sessions.read",
@@ -100,6 +108,7 @@ def main() -> int:
             continue
 
         blocked = (roles - AUTO_APPROVE_ROLES) or (scopes - AUTO_APPROVE_SCOPES)
+        sensitive = "operator.admin" in scopes
         if blocked:
             log(
                 f"跳过 {request_id}：超出自动批准范围 "
@@ -111,7 +120,7 @@ def main() -> int:
         try:
             run_openclaw(["devices", "approve", request_id])
             log(
-                f"已批准 {request_id} "
+                f"{'已批准（含 admin，敏感）' if sensitive else '已批准'} {request_id} "
                 f"device={str(request.get('deviceId'))[:16]} "
                 f"ip={request.get('remoteIp')} scopes={sorted(scopes)}"
             )

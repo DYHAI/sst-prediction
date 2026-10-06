@@ -364,9 +364,18 @@ openclaw devices approve <requestId>
 
 **安全边界（务必知道）**：配对请求只有在 token 校验**通过之后**才会生成，
 所以自动批准等于把边界从"token + 设备批准"降成"只有 token"。而 agent 带着
-shell 工具，拿到 token 的人可以让它在这台 Mac 上执行命令——**token 就是这台
-机器的远程执行权限，请当密码保管**。脚本里 `operator.admin` 一律不自动批，
-留人工处理。
+shell 工具，`tools.exec` 默认就是 full 权限、不需要人工点确认，所以**拿到
+token 的人可以让它在这台 Mac 上执行命令——token 就是这台机器的远程执行
+权限，请当密码保管**。
+
+Control UI 首次连接是按
+`operator.admin / read / write / approvals / questions / pairing`
+整套申请的，而 `openclaw devices approve` 只能按请求原样批准、不能只批一部分，
+所以想让人进得来就必须连 `operator.admin` 一起放行（脚本里对含 admin 的批准
+会打上"敏感"标记）。要收紧的话有两条路：
+
+1. 改 `tools.exec.mode` 为 `ask` / 开沙箱，让高危命令走人工确认；
+2. 上 Cloudflare Access，用邮箱身份替代共享 token。
 
 要做真正的强隔离，应该上 Cloudflare Access（邮箱验证码）+
 `gateway.auth.mode = "trusted-proxy"`，见 `docs/gateway/cloudflare-access.md`。
