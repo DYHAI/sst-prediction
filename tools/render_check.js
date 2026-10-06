@@ -45,6 +45,12 @@ const _fetch = global.fetch;
 global.fetch = (u, o) =>
   _fetch(String(u).startsWith("http") ? u : BASE + u, o);
 global.window = global;
+// app.js 会用到的浏览器 API，桩里补齐；缺了会在加载阶段就抛错
+global.window.addEventListener = () => {};
+global.window.removeEventListener = () => {};
+global.location = { hash: "" };
+global.TextDecoder = global.TextDecoder || class { decode() { return ""; } };
+global.ReadableStream = global.ReadableStream || class {};
 
 const src = fs.readFileSync(path.join(ROOT, "web", "app.js"), "utf8")
   .replace(/\(async function init\(\)[\s\S]*$/m, "");

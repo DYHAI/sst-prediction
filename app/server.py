@@ -416,8 +416,11 @@ class Handler(BaseHTTPRequestHandler):
         try:
             with opener.open(req, timeout=900) as resp:
                 for line in resp:
-                    if line.strip():
-                        self._chunk_write(line)
+                    # 必须原样转发，**包括空行**：
+                    # SSE 靠空行分隔事件（data: {...}\n\n），
+                    # 之前用 if line.strip() 把空行滤掉，事件就粘成一坨，
+                    # 前端按 "\n\n" 切分永远切不开 → 页面显示"（没有输出）"。
+                    self._chunk_write(line)
         except urllib.error.URLError as e:
             self._chunk_write(
                 f'data: {json.dumps({"error": f"本地模型不可用：{e}"})}\n\n'.encode())

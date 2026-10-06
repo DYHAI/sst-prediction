@@ -401,31 +401,33 @@ async function sendChat() {
     const reader = resp.body.getReader();
     const dec = new TextDecoder();
     let buf = "";
+    const handleLine = (line) => {
+      if (!line.startsWith("data: ")) return;
+      const payload = line.slice(6).trim();
+      if (payload === "[DONE]") return;
+      let d = null;
+      try { d = JSON.parse(payload); } catch (e) { return; }
+      if (d.error) throw new Error(String(d.error));
+      const delta = (d.choices && d.choices[0] && d.choices[0].delta) || {};
+      // 思维链单独摘掉，不塞进正文（这个模型默认会先想一大段）
+      if (delta.reasoning_content) pendingReasoning += delta.reasoning_content;
+      if (delta.content) {
+        answer += delta.content;
+        out.textContent = answer;
+        const log = $("#chat-log");
+        log.scrollTop = log.scrollHeight;
+      }
+    };
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
       buf += dec.decode(value, { stream: true });
-      const parts = buf.split("\n\n");
-      buf = parts.pop();
-      parts.forEach((p) => {
-        const line = p.split("\n").find((l) => l.startsWith("data: "));
-        if (!line) return;
-        const payload = line.slice(6).trim();
-        if (payload === "[DONE]") return;
-        let d = null;
-        try { d = JSON.parse(payload); } catch (e) { return; }
-        if (d.error) throw new Error(String(d.error));
-        const delta = (d.choices && d.choices[0] && d.choices[0].delta) || {};
-        // 思维链单独摘掉，不塞进正文（这个模型默认会先想一大段）
-        if (delta.reasoning_content) pendingReasoning += delta.reasoning_content;
-        if (delta.content) {
-          answer += delta.content;
-          out.textContent = answer;
-          const log = $("#chat-log");
-          log.scrollTop = log.scrollHeight;
-        }
-      });
+      // 按行解析（SSE 本来就是行协议），比按空行切分更耐操
+      const lines = buf.split("\n");
+      buf = lines.pop();
+      lines.forEach(handleLine);
     }
+    handleLine(buf);
     if (!answer.trim()) {
       out.textContent = pendingReasoning.trim()
         ? "（模型只在思考，没有输出正文）" : "（没有输出）";
