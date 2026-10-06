@@ -211,6 +211,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(self._mhw(q1.get("days", "180")))
         if path == "/api/extremes":
             return self._json(self._extremes(int(q1.get("days", 180) or 180)))
+        if path == "/api/mhw_board":
+            return self._json(self._mhw_board(int(q1.get("days", 180) or 180)))
         if path == "/api/mhw/chart":
             return self._mhw_chart(q1)
         if path == "/api/leaderboard":
@@ -358,6 +360,14 @@ class Handler(BaseHTTPRequestHandler):
                 return service.extreme_report(conn, days)
 
         return service.cached(f"ext:{days}", 60.0, build)
+
+    def _mhw_board(self, days: int) -> dict:
+        """热浪专项榜：按 ETS/TSS 排，不看温度误差。"""
+        def build():
+            with db.session() as conn:
+                return service.mhw_leaderboard(conn, days)
+
+        return service.cached(f"mhwb:{days}", 60.0, build)
 
     def _model_report(self) -> dict:
         """把本站各模型的验证结果汇总给前端（都是本地生成的 json）。"""

@@ -355,6 +355,91 @@ def extreme_report(conn, window_days: int = 180) -> dict:
     }
 
 
+def mhw_leaderboard(conn, window_days: int = 180, min_per_class: int = 15) -> dict:
+    """热浪专项榜：只看"认不认得出热浪"，不看温度报得多准。
+
+    为什么不能直接按 POD 排：本窗口热浪日占一半左右，**一律报"是"就能拿 POD=100%**。
+    所以用两个对随机猜测公平的评分做主排序，它们是极端事件检验的标准量：
+
+      ETS（Equitable Threat Score，公平威胁评分）
+          = (命中 − 随机命中) / (命中 + 空报 + 漏报 − 随机命中)
+          0 表示和随机猜一样，1 表示完美；"一律报是"恰好得 0。
+      TSS（True Skill Statistic，真实技巧统计量）
+          = POD − POFD，POFD = 空报 /（空报 + 正确否定）
+          同样 0 表示无技巧、1 表示完美。
+
+    专项分 = 100 × (0.6×ETS + 0.4×TSS)，两者都截断到 ≥0。
+    另外要求"热浪日"和"非热浪日"各有至少 min_per_class 条样本，
+    否则 FAR / TSS 会被人为压成 0（例如官方产品目前只有热浪期样本，就会假性满分）。
+    """
+    saved = mhw.load_saved() or {}
+    hot = mhw.mhw_day_set(saved)
+    clim = _thresholds()
+    entries = load_entries(conn, window_days)
+    names = entity_names(conn)
+
+    tab: dict[str, dict] = {}
+    for e in entries:
+        k = G_doy(e.target_date)
+        thr = clim.get(e.region, {}).get("p90", [None] * 365)
+        t = thr[k] if thr and k < len(thr) else None
+        if t is None:
+            continue
+        is_hot = (e.region, e.target_date) in hot
+        pred_hot = e.forecast > t
+        r = tab.setdefault(e.entity, {"hit": 0, "miss": 0, "fa": 0, "cr": 0})
+        key = ("hit" if pred_hot else "miss") if is_hot else ("fa" if pred_hot else "cr")
+        r[key] += 1
+
+    rows = []
+    for entity, c in tab.items():
+        hit, miss, fa, cr = c["hit"], c["miss"], c["fa"], c["cr"]
+        n = hit + miss + fa + cr
+        n_hot = hit + miss
+        n_norm = fa + cr
+        meta = names.get(entity, {"name": entity, "kind": "unknown"})
+        obs_hot = n_hot
+        hit_rand = (obs_hot * (hit + fa) / n) if n else 0.0
+        csi = hit / (hit + miss + fa) if (hit + miss + fa) else None
+        denom = hit + miss + fa - hit_rand
+        ets = (hit - hit_rand) / denom if denom else None
+        tss = (hit / n_hot - fa / n_norm) if (n_hot and n_norm) else None
+        pod = hit / n_hot if n_hot else None
+        far = fa / (hit + fa) if (hit + fa) else None
+        eligible = n_hot >= min_per_class and n_norm >= min_per_class
+        score = None
+        if eligible and ets is not None and tss is not None:
+            score = round(100 * max(0.0, min(1.0, 0.6 * max(0.0, ets) + 0.4 * max(0.0, tss))), 1)
+        rows.append({
+            "entity": entity, "name": meta["name"], "kind": meta["kind"],
+            "n": n, "n_hot": n_hot, "n_norm": n_norm,
+            "hit": hit, "miss": miss, "fa": fa, "cr": cr,
+            "pod": None if pod is None else round(pod, 3),
+            "far": None if far is None else round(far, 3),
+            "csi": None if csi is None else round(csi, 3),
+            "ets": None if ets is None else round(ets, 3),
+            "tss": None if tss is None else round(tss, 3),
+            "score": score, "eligible": eligible,
+        })
+    rows.sort(key=lambda r: (not r["eligible"], -(r["score"] or -1), r["n"]))
+    for i, r in enumerate(rows, 1):
+        r["rank"] = i if r["eligible"] else None
+
+    return {
+        "window_days": window_days,
+        "min_per_class": min_per_class,
+        "hot_ratio": round(
+            sum(r["n_hot"] for r in rows) /
+            max(1, sum(r["n"] for r in rows)), 3),
+        "always_yes": {"pod": 1.0, "far": round(
+            1 - sum(r["n_hot"] for r in rows) / max(1, sum(r["n"] for r in rows)), 3),
+            "ets": 0.0, "tss": 0.0, "csi": round(
+                sum(r["n_hot"] for r in rows) / max(1, sum(r["n"] for r in rows)), 3)},
+        "rows": rows,
+        "baseline": saved.get("baseline"),
+    }
+
+
 def G_doy(day: str) -> int:
     from . import grid as _G
 

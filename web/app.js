@@ -39,7 +39,7 @@ $$("#tabs button").forEach((b) => b.addEventListener("click", () => {
   if (b.dataset.tab === "board") loadBoard();
   if (b.dataset.tab === "maps") { initMaps(); }
   if (b.dataset.tab === "mhw") loadMhw();
-  if (b.dataset.tab === "extremes") loadExtremes();
+  if (b.dataset.tab === "extremes") { loadMhwBoard(); loadExtremes(); }
 }));
 
 function setMsg(el, text, ok = true) {
@@ -451,6 +451,43 @@ function loadMhwChart() {
 }
 
 // ------------------------------------------------------------------ 极端值
+async function loadMhwBoard() {
+  const days = $("#hwb-days").value;
+  try {
+    const d = await api("/api/mhw_board?days=" + days);
+    const ay = d.always_yes;
+    $("#hwb-summary").innerHTML = `
+      <div class="cell"><label>热浪日占比</label><b>${(d.hot_ratio * 100).toFixed(0)}%</b></div>
+      <div class="cell"><label>参照：一律报"是"</label><b>POD ${(ay.pod * 100).toFixed(0)}% / FAR ${(ay.far * 100).toFixed(0)}%</b></div>
+      <div class="cell"><label>它的 ETS / TSS</label><b>${ay.ets.toFixed(2)} / ${ay.tss.toFixed(2)}</b></div>
+      <div class="cell"><label>入榜门槛</label><b>热浪日与非热浪日各 ≥ ${d.min_per_class} 条</b></div>`;
+
+    let h = `<thead><tr><th>名次</th><th>条目</th><th>专项分</th><th>ETS</th><th>TSS</th>
+      <th>POD 命中</th><th>FAR 空报</th><th>CSI</th><th>热浪日</th><th>非热浪日</th></tr></thead><tbody>`;
+    d.rows.forEach((r) => {
+      const cls = !r.eligible ? "" : (r.kind === "product" ? "product"
+        : (r.kind === "baseline" ? "baseline" : ""));
+      const dim = r.eligible ? "" : ' style="opacity:.5"';
+      h += `<tr class="${cls}"${dim}><td>${r.rank ?? "—"}</td>
+        <td>${esc(r.name)}${r.eligible ? "" : ' <span class="pill base">样本不足</span>'}</td>
+        <td><b>${r.score === null ? "—" : fmt(r.score, 1)}</b></td>
+        <td>${r.ets === null ? "—" : fmt(r.ets, 3)}</td>
+        <td>${r.tss === null ? "—" : fmt(r.tss, 3)}</td>
+        <td>${r.pod === null ? "—" : (r.pod * 100).toFixed(0) + "%"}</td>
+        <td>${r.far === null ? "—" : (r.far * 100).toFixed(1) + "%"}</td>
+        <td>${r.csi === null ? "—" : fmt(r.csi, 3)}</td>
+        <td>${r.n_hot}</td><td>${r.n_norm}</td></tr>`;
+    });
+    $("#hwb-table").innerHTML = h + "</tbody>";
+    $("#hwb-note").innerHTML =
+      `必须同时有"热浪日"和"非热浪日"样本才有意义——否则空报率会被算成 0、评分假性满分。` +
+      `官方产品目前只有最近约 10 天的结算样本，而这 10 天恰好整段处在一次南海全域热浪里，` +
+      `所以它们暂时无法入榜（上表灰显）。等历史攒起来会自动进来。`;
+  } catch (e) {
+    $("#hwb-table").innerHTML = `<tbody><tr><td class="bad">${esc(e.message)}</td></tr></tbody>`;
+  }
+}
+
 async function loadExtremes() {
   const days = $("#ex-days").value;
   try {

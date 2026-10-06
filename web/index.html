@@ -259,6 +259,32 @@ time,lat,lon,sst</pre>
   <section id="tab-extremes" class="hidden">
     <div class="card">
       <div class="row between">
+        <strong>热浪专项榜 —— 只看"认不认得出热浪"</strong>
+        <select id="hwb-days">
+          <option value="90">最近 90 天</option>
+          <option value="180">最近 180 天</option>
+          <option value="365" selected>最近 1 年</option>
+          <option value="0">全部</option>
+        </select>
+      </div>
+      <p class="muted small">
+        这张榜<b>不看温度报得多准</b>，只看能不能提前认出热浪。
+        不能直接按 POD 排——本窗口热浪日占一半左右，<b>一律报"是"就能拿 POD=100%</b>。
+        所以主排序用两个对随机猜测公平的评分：
+      </p>
+      <ul class="muted small">
+        <li><b>ETS（公平威胁评分）</b>＝ (命中 − 随机命中) ÷ (命中+空报+漏报 − 随机命中)。
+          0 表示和随机猜一样，1 表示完美；「一律报是」恰好得 <b>0</b>。</li>
+        <li><b>TSS（真实技巧统计量）</b>＝ POD − 空报率（相对非热浪日）。同样 0 无技巧、1 完美。</li>
+        <li><b>专项分</b> = 100 × (0.6×ETS + 0.4×TSS)。</li>
+      </ul>
+      <div class="kv" id="hwb-summary"></div>
+      <div class="scroll"><table id="hwb-table"></table></div>
+      <p class="muted small" id="hwb-note"></p>
+    </div>
+
+    <div class="card">
+      <div class="row between">
         <strong>模型在极端值上的表现</strong>
         <select id="ex-days">
           <option value="90">最近 90 天</option>
