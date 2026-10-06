@@ -34,8 +34,12 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 // ------------------------------------------------------------------ 标签页
 $$("#tabs button").forEach((b) => b.addEventListener("click", () => {
   $$("#tabs button").forEach((x) => x.classList.toggle("on", x === b));
-  ["submit", "board", "maps", "about"].forEach((t) =>
-    $("#tab-" + t).classList.toggle("hidden", t !== b.dataset.tab));
+  // 直接按标签按钮生成区块列表：以前这里写死了四个名字，
+  // 后来加页签忘了同步，点新页签会把所有区块都藏起来（白屏）。
+  $$("#tabs button").forEach((x) => {
+    const sec = $("#tab-" + x.dataset.tab);
+    if (sec) sec.classList.toggle("hidden", x !== b);
+  });
   if (b.dataset.tab === "board") loadBoard();
   if (b.dataset.tab === "maps") { initMaps(); }
   if (b.dataset.tab === "mhw") loadMhw();

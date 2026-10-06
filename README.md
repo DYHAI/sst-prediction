@@ -361,6 +361,18 @@ SST_PORT=8770 python3 -m app.server
 依赖：Python 3 标准库 + `eccodes`（`brew install eccodes`，只用于解 GRIB2）。
 Web 服务本身零第三方依赖。
 
+## 改动后自检
+
+```bash
+python3 -m tools.build_mhw          # 热浪事件
+node tools/render_check.js          # 每个页签的渲染（需要服务在 8770 跑着）
+```
+
+`render_check.js` 用最小 DOM 桩把每个页签的渲染函数真跑一遍，顺带检查
+"页签按钮 ↔ 区块 id"是否一一对应。**这个是踩过坑之后加的**：
+加新页签时忘了同步"隐藏/显示区块"的那个列表，点新页签会把所有区块都藏起来，
+表现成一片空白——而接口是好的、HTML 也是好的，静态检查完全看不出来。
+
 ## 目录结构
 
 ```
