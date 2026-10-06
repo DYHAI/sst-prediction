@@ -40,6 +40,7 @@ $$("#tabs button").forEach((b) => b.addEventListener("click", () => {
   if (b.dataset.tab === "maps") { initMaps(); }
   if (b.dataset.tab === "mhw") loadMhw();
   if (b.dataset.tab === "extremes") { loadMhwBoard(); loadExtremes(); }
+  if (b.dataset.tab === "longtest") loadLongtest();
 }));
 
 function setMsg(el, text, ok = true) {
@@ -451,6 +452,88 @@ function loadMhwChart() {
 }
 
 // ------------------------------------------------------------------ 极端值
+const MODEL_CN = { clim: "气候态", persistence: "持续性", damped: "阻尼持续性",
+  gfs: "NCEP GFS", lim: "本站 LIM", xgb: "本站 XGBoost", unet: "本站 U-Net" };
+
+async function loadLongtest() {
+  try {
+    const d = await api("/api/backtest");
+    if (d.error) {
+      $("#lt-table").innerHTML = `<tbody><tr><td class="muted">${esc(d.error)}</td></tr></tbody>`;
+      return;
+    }
+    $("#lt-design").textContent =
+      `训练 ${d.design.train[0]} ~ ${d.design.train[1]}｜测试 ${d.design.test[0]} ~ ${d.design.test[1]}｜${d.design.n_test_days} 天`;
+    $("#lt-note").innerHTML =
+      `只能长时段回补 <b>GFS</b> 一个官方产品——HYCOM 上游只保留约 9 次起报、` +
+      `CFSv2 的 NOMADS 只留约 10 天、NCEI 的业务归档路径已失效。` +
+      `这两个产品只能在榜单里靠每日抓数慢慢攒（网站上标了还差多少天）。`;
+    const models = Object.keys(d.by_lead);
+    const leads = d.design.leads;
+
+    let h = `<thead><tr><th>时效</th>` +
+      models.map((m) => `<th>${esc(MODEL_CN[m] || m)}</th>`).join("") + `</tr></thead><tbody>`;
+    leads.forEach((L) => {
+      h += `<tr><td>${L} 天</td>`;
+      models.forEach((m) => {
+        const row = (d.by_lead[m] || []).find((r) => r.lead === L);
+        h += `<td>${row ? fmt(row.mae, 3) : "—"}</td>`;
+      });
+      h += `</tr>`;
+    });
+    h += `<tr style="font-weight:600"><td>加权平均</td>` + models.map((m) => {
+      const rows = (d.by_lead[m] || []).filter((r) => r.mae !== null);
+      if (!rows.length) return `<td>—</td>`;
+      const w = rows.reduce((s, r) => s + r.n, 0);
+      return `<td>${fmt(rows.reduce((s, r) => s + r.mae * r.n, 0) / w, 3)}</td>`;
+    }).join("") + `</tr>`;
+    $("#lt-table").innerHTML = h + "</tbody>";
+
+    let y = `<thead><tr><th>年份</th>` +
+      models.map((m) => `<th>${esc(MODEL_CN[m] || m)}</th>`).join("") + `</tr></thead><tbody>`;
+    const years = [...new Set(models.flatMap((m) => (d.by_year[m] || []).map((r) => r.year)))].sort();
+    years.forEach((yr) => {
+      y += `<tr><td>${yr}</td>`;
+      models.forEach((m) => {
+        const row = (d.by_year[m] || []).find((r) => r.year === yr);
+        y += `<td>${row ? fmt(row.mae, 3) : "—"}</td>`;
+      });
+      y += `</tr>`;
+    });
+    $("#lt-year").innerHTML = y + "</tbody>";
+
+    let t = `<thead><tr><th>模型</th><th>时效</th><th>热浪日 MAE</th><th>正常日 MAE</th>
+      <th>劣化</th><th>POD</th><th>FAR</th><th>ETS</th><th>热浪样本</th></tr></thead><tbody>`;
+    models.forEach((m) => {
+      (d.by_lead[m] || []).forEach((r) => {
+        if (r.mae_hot === null || r.mae_hot === undefined) return;
+        const deg = r.mae_norm ? r.mae_hot / r.mae_norm - 1 : null;
+        t += `<tr><td>${esc(MODEL_CN[m] || m)}</td><td>${r.lead} 天</td>
+          <td>${fmt(r.mae_hot, 3)}</td><td>${fmt(r.mae_norm, 3)}</td>
+          <td>${deg === null ? "—" : signed(deg * 100, 1) + "%"}</td>
+          <td>${r.pod === null ? "—" : (r.pod * 100).toFixed(0) + "%"}</td>
+          <td>${r.far === null ? "—" : (r.far * 100).toFixed(1) + "%"}</td>
+          <td>${r.ets === null ? "—" : fmt(r.ets, 3)}</td>
+          <td>${r.n_hot}</td></tr>`;
+      });
+    });
+    $("#lt-hot").innerHTML = t + "</tbody>";
+    loadLtChart();
+  } catch (e) {
+    $("#lt-table").innerHTML = `<tbody><tr><td class="bad">${esc(e.message)}</td></tr></tbody>`;
+  }
+}
+
+function loadLtChart() {
+  const m = $("#lt-metric").value;
+  const zoom = $("#lt-zoom").checked;
+  const models = zoom ? "persistence,damped,lim,xgb,unet" : "";
+  $("#lt-chart").src =
+    `/api/backtest/chart?metric=${m}${models ? "&models=" + models : ""}&t=${Date.now()}`;
+}
+$("#lt-metric").onchange = loadLtChart;
+$("#lt-zoom").onchange = loadLtChart;
+
 async function loadMhwBoard() {
   const days = $("#hwb-days").value;
   try {

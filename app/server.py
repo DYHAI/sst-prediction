@@ -215,6 +215,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(self._mhw_board(int(q1.get("days", 180) or 180)))
         if path == "/api/mhw/chart":
             return self._mhw_chart(q1)
+        if path == "/api/backtest":
+            return self._json(self._backtest())
+        if path == "/api/backtest/chart":
+            return self._backtest_chart(q1)
         if path == "/api/leaderboard":
             return self._json(self._leaderboard(int(q1.get("days", 0)) or None))
         if path.startswith("/api/entity/"):
@@ -352,6 +356,47 @@ class Handler(BaseHTTPRequestHandler):
             [{"values": mean, "color": (196, 214, 226), "width": 1, "dash": True},
              {"values": thr, "color": (233, 150, 80), "width": 2, "dash": True},
              {"values": sst, "color": (11, 126, 168), "width": 2}])
+        self._send(200, out, "image/png", {"Cache-Control": "public, max-age=300"})
+
+    # ------------------------------------------------------------ 长期回测
+    def _backtest(self) -> dict:
+        p = os.path.join(BASE, "data", "backtest_long.json")
+        try:
+            with open(p, encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:  # noqa: BLE001
+            return {"error": "还没有回测结果，先跑 tools/backtest_long.py"}
+
+    def _backtest_chart(self, q1: dict):
+        """误差随预报时效的变化曲线（每个模型一条）。"""
+        from . import charts
+
+        metric = q1.get("metric", "mae")
+        p = os.path.join(BASE, "data", "backtest_long.json")
+        try:
+            with open(p, encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:  # noqa: BLE001
+            return self._err(404, "还没有回测结果")
+        colors = {
+            "clim": (205, 210, 220), "persistence": (150, 165, 180),
+            "damped": (70, 190, 120), "gfs": (235, 120, 60),
+            "lim": (240, 180, 50), "xgb": (175, 110, 200),
+            "unet": (20, 100, 200),
+        }
+        want = q1.get("models")
+        keep = set(x for x in want.split(",") if x) if want else None
+        series = []
+        for model, rows in (data.get("by_lead") or {}).items():
+            if keep is not None and model not in keep:
+                continue
+            vals = [r.get(metric) for r in sorted(rows, key=lambda z: z["lead"])]
+            if not any(v is not None for v in vals):
+                continue
+            series.append({"values": [float("nan") if v is None else v for v in vals],
+                           "color": colors.get(model, (120, 120, 120)),
+                           "width": 3 if model in ("unet", "damped") else 2})
+        out = charts.line_chart(660, 260, series)
         self._send(200, out, "image/png", {"Cache-Control": "public, max-age=300"})
 
     def _extremes(self, days: int) -> dict:

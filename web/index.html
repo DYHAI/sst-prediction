@@ -51,6 +51,7 @@
       <button data-tab="board">排行榜</button>
       <button data-tab="mhw">海洋热浪</button>
       <button data-tab="extremes">极端值比拼</button>
+      <button data-tab="longtest">长期回测</button>
       <button data-tab="maps">海温图</button>
       <button data-tab="about">方法与文献</button>
     </nav>
@@ -177,6 +178,72 @@ time,lat,lon,sst</pre>
   </section>
 
   <!-- ============================ 海洋热浪 ============================ -->
+  <!-- ============================ 长期回测 ============================ -->
+  <section id="tab-longtest" class="hidden">
+    <div class="card">
+      <div class="row between">
+        <strong>2023–2026 长期回测：1–10 天时效</strong>
+        <span class="muted small" id="lt-design"></span>
+      </div>
+      <p class="muted small">
+        训练期 <b>2023-01-01 ~ 2024-12-31</b>，测试期 <b>2025-01-01 ~ 2026-09-30</b>。
+        所有模型只用训练期数据拟合，在同一段没见过的测试期上评估——同一把尺子。
+        预报时效 1 到 10 天，每天、每个海区、每个时效各出一条预报，用 OISST 海区均值验证。
+      </p>
+      <p class="muted small" id="lt-note"></p>
+      <div class="row">
+        <select id="lt-metric">
+          <option value="mae" selected>MAE 平均绝对误差</option>
+          <option value="rmse">RMSE 均方根误差</option>
+          <option value="bias">偏差</option>
+        </select>
+        <label class="muted small" style="display:flex;align-items:center;gap:6px">
+          <input type="checkbox" id="lt-zoom" checked style="width:auto"> 隐藏气候态与 GFS（放大对比）
+        </label>
+        <span class="muted small">横轴 = 预报时效（天）</span>
+      </div>
+      <div class="map-box"><img id="lt-chart" alt="误差随时效变化"></div>
+      <p class="muted small">
+        图例：
+        <span style="color:#141e28;font-weight:600">━ 本站 U-Net</span>　
+        <span style="color:#46be78">━ 阻尼持续性</span>　
+        <span style="color:#f0b432">━ 本站 LIM</span>　
+        <span style="color:#af6ec8">━ 本站 XGBoost</span>　
+        <span style="color:#96a5b4">━ 持续性</span>　
+        <span style="color:#eb783c">━ NCEP GFS</span>　
+        <span style="color:#cdd2dc">━ 气候态</span>
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="row between">
+        <strong>逐时效对比</strong>
+        <span class="muted small">单位 °C</span>
+      </div>
+      <div class="scroll"><table id="lt-table"></table></div>
+    </div>
+
+    <div class="card">
+      <div class="row between">
+        <strong>分年度对比（全部时效合并）</strong>
+        <span class="muted small">看不同年份的难度差异</span>
+      </div>
+      <div class="scroll"><table id="lt-year"></table></div>
+    </div>
+
+    <div class="card">
+      <div class="row between">
+        <strong>热浪日 vs 正常日</strong>
+        <span class="muted small">每个时效分别统计</span>
+      </div>
+      <p class="muted small">
+        同一批预报里，目标日落在海洋热浪内的那些样本单独算一遍。
+        「劣化」= 热浪日 MAE ÷ 正常日 MAE − 1。
+      </p>
+      <div class="scroll"><table id="lt-hot"></table></div>
+    </div>
+  </section>
+
   <section id="tab-mhw" class="hidden">
     <div class="card">
       <div class="row between">
