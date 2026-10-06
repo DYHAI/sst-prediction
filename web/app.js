@@ -38,6 +38,8 @@ $$("#tabs button").forEach((b) => b.addEventListener("click", () => {
     $("#tab-" + t).classList.toggle("hidden", t !== b.dataset.tab));
   if (b.dataset.tab === "board") loadBoard();
   if (b.dataset.tab === "maps") { initMaps(); }
+  if (b.dataset.tab === "mhw") loadMhw();
+  if (b.dataset.tab === "extremes") loadExtremes();
 }));
 
 function setMsg(el, text, ok = true) {
@@ -314,6 +316,172 @@ async function loadProdErrors() {
     $("#prod-err-table").innerHTML = h + "</tbody>";
   } catch (e) { /* 忽略 */ }
 }
+
+// ------------------------------------------------------------------ 方法说明
+// ------------------------------------------------------------------ 海洋热浪
+let mhwData = null;
+
+async function loadMhw() {
+  if (!mhwData) {
+    try {
+      mhwData = await api("/api/mhw");
+    } catch (e) {
+      $("#mhw-status").innerHTML = `<tbody><tr><td class="bad">${esc(e.message)}</td></tr></tbody>`;
+      return;
+    }
+    const sel = $("#mhw-region");
+    if (!sel.options.length) {
+      state.meta.regions.forEach((r) => {
+        const o = document.createElement("option");
+        o.value = r.code; o.textContent = r.name_cn; sel.appendChild(o);
+      });
+      sel.value = "pearl_river";
+      sel.onchange = loadMhwChart;
+      $("#mhw-days").onchange = renderMhwEvents;
+    }
+  }
+  const d = mhwData;
+  if (d.error) { $("#mhw-status").innerHTML = `<tbody><tr><td>${esc(d.error)}</td></tr></tbody>`; return; }
+
+  $("#mhw-meta").textContent =
+    `基准期 ${d.baseline[0]}–${d.baseline[1]}｜序列 ${d.series_range[0]} ~ ${d.series_range[1]}（${d.n_series_days} 天）`;
+  $("#mhw-latest").textContent = `最新观测日 ${d.latest}`;
+  $("#mhw-note").textContent =
+    `口径说明：${d.offset_note}。另外这是在海区平均上判定，会平滑掉小范围热点；` +
+    `气候态用固定基准期（1982–2011），在全球变暖背景下近年热浪天数会系统性偏多，这是定义本身的特性，不是数据问题。`;
+
+  renderMhwStatus(d.status);
+  renderMhwPred(d.predicted, d.latest);
+  renderMhwEvents();
+  renderMhwYearly(d.yearly);
+  loadMhwChart();
+}
+
+function renderMhwStatus(rows) {
+  let h = `<thead><tr><th>海区</th><th>当前海温</th><th>90 分位阈值</th>
+    <th>气候态均值</th><th>距平</th><th>距阈值</th><th>状态</th></tr></thead><tbody>`;
+  rows.forEach((r) => {
+    h += `<tr><td>${esc(r.region_cn)}</td><td>${fmt(r.sst)} °C</td>
+      <td>${fmt(r.threshold)} °C</td><td>${fmt(r.clim_mean)} °C</td>
+      <td>${signed(r.anomaly)} °C</td><td>${signed(r.margin)} °C</td>
+      <td>${r.above ? "🔥 热浪中" : "正常"}</td></tr>`;
+  });
+  $("#mhw-status").innerHTML = h + "</tbody>";
+}
+
+function renderMhwPred(pred, latest) {
+  const dates = Object.keys(pred || {}).sort();
+  if (!dates.length) {
+    $("#mhw-pred").innerHTML = `<tbody><tr><td class="muted">还没有未来日期的产品预报。</td></tr></tbody>`;
+    return;
+  }
+  const hz = ["1", "3", "5"];
+  let h = `<thead><tr><th>目标日</th><th>时效</th>`;
+  state.meta.regions.forEach((r) => { h += `<th>${esc(r.name_cn)}</th>`; });
+  h += `</tr></thead><tbody>`;
+  dates.forEach((d) => {
+    hz.forEach((h0) => {
+      const any = state.meta.regions.some((r) => pred[d] && pred[d][r.code] && pred[d][r.code][h0]);
+      if (!any) return;
+      h += `<tr><td>${d}</td><td>${h0} 天</td>`;
+      state.meta.regions.forEach((r) => {
+        const cell = pred[d] && pred[d][r.code] && pred[d][r.code][h0];
+        if (!cell) { h += `<td class="muted">—</td>`; return; }
+        const above = Object.values(cell).filter((v) => v.above).length;
+        const tot = Object.keys(cell).length;
+        h += `<td>${above}/${tot}${above ? " 🔥" : ""}</td>`;
+      });
+      h += `</tr>`;
+    });
+  });
+  $("#mhw-pred").innerHTML = h + "</tbody>";
+}
+
+function renderMhwEvents() {
+  const d = mhwData;
+  const span = parseInt($("#mhw-days").value || "365", 10);
+  let list = d.recent_events || [];
+  if (span > 0) {
+    const cut = new Date(Date.parse(d.latest + "T00:00:00Z") - span * 86400000)
+      .toISOString().slice(0, 10);
+    list = list.filter((e) => e.end >= cut);
+  }
+  let h = `<thead><tr><th>海区</th><th>起止</th><th>持续</th><th>平均强度</th>
+    <th>峰值强度</th><th>累计强度</th><th>等级</th></tr></thead><tbody>`;
+  if (!list.length) h += `<tr><td colspan="7" class="muted">这个区间没有事件。</td></tr>`;
+  list.slice(0, 200).forEach((e) => {
+    h += `<tr><td>${esc(e.region_cn)}</td><td>${e.start} ~ ${e.end}</td>
+      <td>${e.duration} 天</td><td>+${fmt(e.intensity_mean)} °C</td>
+      <td>+${fmt(e.intensity_max)} °C</td><td>${fmt(e.severity, 1)} °C·天</td>
+      <td>${esc(e.category_name)}</td></tr>`;
+  });
+  $("#mhw-events").innerHTML = h + "</tbody>";
+}
+
+function renderMhwYearly(yearly) {
+  if (!yearly || !yearly.length) return;
+  const years = yearly.map((y) => String(y.year));
+  let h = `<thead><tr><th>年份</th>`;
+  state.meta.regions.forEach((r) => { h += `<th>${esc(r.name_cn)}</th>`; });
+  h += `</tr></thead><tbody>`;
+  yearly.slice().reverse().forEach((y) => {
+    h += `<tr><td>${y.year}</td>`;
+    state.meta.regions.forEach((r) => {
+      const v = y.regions[r.code];
+      const cls = v >= 180 ? "bad" : "";
+      h += `<td class="${cls}">${v} 天</td>`;
+    });
+    h += `</tr>`;
+  });
+  $("#mhw-yearly-table").innerHTML = h + "</tbody>";
+  // 用 CSS 条形图代替图片，省一次请求
+  let bars = yearly.map((y) => {
+    const tot = state.meta.regions.reduce((s, r) => s + (y.regions[r.code] || 0), 0) / 7;
+    return `<div style="margin:3px 0"><span class="muted small" style="display:inline-block;width:44px">${y.year}</span>
+      <span style="display:inline-block;height:12px;width:${Math.min(100, tot / 3.65)}%;background:#0b7ea8;border-radius:3px"></span>
+      <span class="muted small">${tot.toFixed(0)} 天/海区</span></div>`;
+  }).join("");
+  $("#mhw-yearly").outerHTML = `<div id="mhw-yearly">${bars}</div>`;
+}
+
+function loadMhwChart() {
+  const reg = $("#mhw-region").value || "beibu";
+  const img = $("#mhw-chart");
+  img.src = `/api/mhw/chart?region=${reg}&days=240&t=${Date.now()}`;
+}
+
+// ------------------------------------------------------------------ 极端值
+async function loadExtremes() {
+  const days = $("#ex-days").value;
+  try {
+    const d = await api("/api/extremes?days=" + days);
+    const ratio = d.hot_ratio;
+    $("#ex-summary").innerHTML = `
+      <div class="cell"><label>热浪日占比</label><b>${ratio === null ? "—" : (ratio * 100).toFixed(0) + "%"}</b></div>
+      <div class="cell"><label>热浪样本</label><b>${d.n_hot}</b></div>
+      <div class="cell"><label>非热浪样本</label><b>${d.n_norm}</b></div>
+      <div class="cell"><label>"一律报热浪"的 FAR</label><b>${ratio === null ? "—" : ((1 - ratio) * 100).toFixed(0) + "%"}</b></div>`;
+    let h = `<thead><tr><th>条目</th><th>热浪日 MAE</th><th>正常日 MAE</th>
+      <th>劣化幅度</th><th>热浪日 RMSE</th><th>热浪日偏差</th>
+      <th>POD 命中率</th><th>FAR 空报率</th><th>热浪样本</th></tr></thead><tbody>`;
+    if (!d.rows.length) h += `<tr><td colspan="9" class="muted">还没有足够的已结算记录。</td></tr>`;
+    d.rows.forEach((r) => {
+      const cls = r.kind === "product" ? "product" : (r.kind === "baseline" ? "baseline" : "");
+      const deg = r.degrade === null ? "—"
+        : `<span style="color:${r.degrade > 0.1 ? "#b3541e" : "#5b7d94"}">${signed(r.degrade * 100, 1)}%</span>`;
+      h += `<tr class="${cls}"><td>${esc(r.name)}</td>
+        <td><b>${fmt(r.mae_hot, 3)}</b></td><td>${fmt(r.mae_norm, 3)}</td>
+        <td>${deg}</td><td>${fmt(r.rmse_hot, 3)}</td><td>${signed(r.bias_hot, 3)}</td>
+        <td>${r.pod === null ? "—" : (r.pod * 100).toFixed(0) + "%"}</td>
+        <td>${r.far === null ? "—" : (r.far * 100).toFixed(1) + "%"}</td>
+        <td>${r.n_hot}</td></tr>`;
+    });
+    $("#ex-table").innerHTML = h + "</tbody>";
+  } catch (e) {
+    $("#ex-table").innerHTML = `<tbody><tr><td class="bad">${esc(e.message)}</td></tr></tbody>`;
+  }
+}
+$("#ex-days").onchange = loadExtremes;
 
 // ------------------------------------------------------------------ 方法说明
 const AI_MODELS = [

@@ -49,6 +49,12 @@ def _rate_ok(key: str, limit: int, window: float = 3600.0) -> bool:
     return True
 
 
+def G_doy(day: str) -> int:
+    from . import grid as _g
+
+    return _g.doy_index(day)
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "SSTPrediction/1.0"
     protocol_version = "HTTP/1.1"
@@ -201,6 +207,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._map(q1)
         if path == "/api/model_report":
             return self._json(self._model_report())
+        if path == "/api/mhw":
+            return self._json(self._mhw(q1.get("days", "180")))
+        if path == "/api/extremes":
+            return self._json(self._extremes(int(q1.get("days", 180) or 180)))
+        if path == "/api/mhw/chart":
+            return self._mhw_chart(q1)
         if path == "/api/leaderboard":
             return self._json(self._leaderboard(int(q1.get("days", 0)) or None))
         if path.startswith("/api/entity/"):
@@ -255,6 +267,98 @@ class Handler(BaseHTTPRequestHandler):
         }
 
     # ------------------------------------------------------------ 海温图
+    def _mhw(self, days: str) -> dict:
+        from . import mhw
+
+        def build():
+            saved = mhw.load_saved()
+            if not saved:
+                return {"error": "热浪事件还没计算，先跑 tools/build_mhw.py"}
+            series = mhw.load_series()
+            clim = mhw.load_climatology()
+            last = max(series)
+            series_days = int(days or 180)
+            cutoff = (datetime.fromisoformat(last) - timedelta(days=series_days)).date().isoformat()
+
+            # 年度热浪天数
+            years = list(range(2015, int(last[:4]) + 1))
+            yearly = []
+            for y in years:
+                row = {"year": y, "regions": {}}
+                for reg in R.REGIONS:
+                    n = sum(1 for e in saved["events"]
+                            if e["region"] == reg.code and e["start"][:4] == str(y))
+                    dsum = sum(e["duration"] for e in saved["events"]
+                               if e["region"] == reg.code and e["start"][:4] == str(y))
+                    row["regions"][reg.code] = dsum
+                yearly.append(row)
+
+            # 预测：未来几个时效里，各产品的预报是否仍高于阈值
+            import sqlite3 as _s
+            pred = {}
+            doys = {}
+            with db.session() as conn:
+                targets = [r["target_date"] for r in conn.execute(
+                    "SELECT DISTINCT target_date FROM products WHERE target_date > ?"
+                    " ORDER BY target_date LIMIT 6", (last,))]
+                for t in targets:
+                    doys[t] = [(dict(r)) for r in conn.execute(
+                        "SELECT product, region, horizon, value FROM products"
+                        " WHERE target_date = ? AND product IN ('hycom','cfs','ours','xgboost','stack','unet')"
+                        " ORDER BY horizon, region", (t,))]
+            for t, rows in doys.items():
+                k = mhw.G.doy_index(t)
+                for r in rows:
+                    thr = clim["regions"][r["region"]]["p90"][k]
+                    item = pred.setdefault(t, {}).setdefault(r["region"], {})
+                    item.setdefault(str(r["horizon"]), {})[r["product"]] = {
+                        "value": round(r["value"], 2),
+                        "above": bool(r["value"] > thr),
+                    }
+
+            return {
+                "generated_at": saved.get("generated_at"),
+                "series_range": saved.get("series_range"),
+                "baseline": saved.get("baseline"),
+                "n_series_days": saved.get("n_series_days"),
+                "latest": last,
+                "status": mhw.status_table(series, clim, last),
+                "recent_events": mhw.all_events(series, clim, cutoff),
+                "yearly": yearly,
+                "predicted": pred,
+                "offset_note": "近实时版与最终版的逐海区偏差实测 ±0.08°C 以内，远小于阈值余量，未做修正",
+            }
+
+        return service.cached("mhw", 300.0, build)
+
+    def _mhw_chart(self, q1: dict):
+        """某海区近 N 天的海温 vs 90 分位阈值折线图。"""
+        from . import charts, mhw
+
+        reg = q1.get("region", "beibu")
+        n = max(30, min(400, int(q1.get("days", 180) or 180)))
+        series = mhw.load_series()
+        clim = mhw.load_climatology()
+        if reg not in clim["regions"]:
+            return self._err(400, "未知海区")
+        days = sorted(series)[-n:]
+        sst = [series[d].get(reg, float("nan")) for d in days]
+        thr = [clim["regions"][reg]["p90"][G_doy(d)] for d in days]
+        mean = [clim["regions"][reg]["mean"][G_doy(d)] for d in days]
+        out = charts.line_chart(
+            640, 240,
+            [{"values": mean, "color": (196, 214, 226), "width": 1, "dash": True},
+             {"values": thr, "color": (233, 150, 80), "width": 2, "dash": True},
+             {"values": sst, "color": (11, 126, 168), "width": 2}])
+        self._send(200, out, "image/png", {"Cache-Control": "public, max-age=300"})
+
+    def _extremes(self, days: int) -> dict:
+        def build():
+            with db.session() as conn:
+                return service.extreme_report(conn, days)
+
+        return service.cached(f"ext:{days}", 60.0, build)
+
     def _model_report(self) -> dict:
         """把本站各模型的验证结果汇总给前端（都是本地生成的 json）。"""
         out: dict = {"lim": None, "postproc": None, "unet": None}

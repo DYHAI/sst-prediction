@@ -49,6 +49,8 @@
     <nav class="tabs" id="tabs">
       <button data-tab="submit" class="on">提交预测</button>
       <button data-tab="board">排行榜</button>
+      <button data-tab="mhw">海洋热浪</button>
+      <button data-tab="extremes">极端值比拼</button>
       <button data-tab="maps">海温图</button>
       <button data-tab="about">方法与文献</button>
     </nav>
@@ -171,6 +173,114 @@ time,lat,lon,sst</pre>
       <strong>每个海区·时效的基准线</strong>
       <p class="muted small">这是"标准"的具体数字。谁想拿高分，就得在这些 MAE 上更小。</p>
       <div class="scroll"><table id="ref-table"></table></div>
+    </div>
+  </section>
+
+  <!-- ============================ 海洋热浪 ============================ -->
+  <section id="tab-mhw" class="hidden">
+    <div class="card">
+      <div class="row between">
+        <strong>什么是海洋热浪（Marine Heatwave）</strong>
+        <span class="muted small" id="mhw-meta"></span>
+      </div>
+      <p class="muted small">
+        海洋热浪指的是<b>海温连续多天明显高于当地历史同期水平</b>的极端暖事件，
+        和陆地上的热浪一样会持续、会移动，是珊瑚白化、渔业减产、养殖暴毙的直接推手。
+        判定用的是 Hobday et al. (2016) 的层级定义：
+      </p>
+      <ol class="muted small">
+        <li>对每个海区、每个日期，取 <b>1982–2011 年</b>气候态，在前后 ±5 天内算
+          <b>90 分位阈值</b>（约 330 个样本）；</li>
+        <li>海温<b>连续 5 天以上</b>高于阈值 → 记一次事件；</li>
+        <li>两次事件之间若只隔 ≤2 天，合并成一次。</li>
+      </ol>
+      <p class="muted small">
+        强度按 Hobday et al. (2018) 分级：拿"阈值 − 气候态均值"记为 dSST，
+        超出阈值 1–2×dSST 为 <b>I 中等</b>、2–3× 为 <b>II 强</b>、
+        3–4× 为 <b>III 严重</b>、>4× 为 <b>IV 极端</b>。
+      </p>
+      <p class="muted small" id="mhw-note"></p>
+    </div>
+
+    <div class="card">
+      <div class="row between">
+        <strong>当前状态</strong>
+        <span class="muted small" id="mhw-latest"></span>
+      </div>
+      <div class="scroll"><table id="mhw-status"></table></div>
+    </div>
+
+    <div class="card">
+      <div class="row between">
+        <strong>海温 vs 90 分位阈值</strong>
+        <select id="mhw-region"></select>
+      </div>
+      <p class="muted small">
+        <span style="color:#0b7ea8">━ 实测海温</span>　
+        <span style="color:#e99650">┅ 90 分位阈值</span>　
+        <span class="muted">┈ 气候态均值</span>　
+        ｜曲线爬到橙线以上就是热浪期
+      </p>
+      <div class="map-box"><img id="mhw-chart" alt="海温与阈值对比"></div>
+    </div>
+
+    <div class="card">
+      <div class="row between">
+        <strong>未来几天还会是热浪吗</strong>
+        <span class="muted small">各模型预报值是否仍高于阈值</span>
+      </div>
+      <div class="scroll"><table id="mhw-pred"></table></div>
+    </div>
+
+    <div class="card">
+      <div class="row between">
+        <strong>最近的热浪事件</strong>
+        <select id="mhw-days">
+          <option value="120">最近 120 天</option>
+          <option value="365" selected>最近 1 年</option>
+          <option value="1825">最近 5 年</option>
+          <option value="0">全部</option>
+        </select>
+      </div>
+      <div class="scroll"><table id="mhw-events"></table></div>
+    </div>
+
+    <div class="card">
+      <div class="row between">
+        <strong>各海区逐年热浪天数</strong>
+        <span class="muted small">横轴为年份</span>
+      </div>
+      <div class="map-box"><img id="mhw-yearly" alt="逐年热浪天数"></div>
+      <div class="scroll"><table id="mhw-yearly-table"></table></div>
+    </div>
+  </section>
+
+  <!-- ============================ 极端值比拼 ============================ -->
+  <section id="tab-extremes" class="hidden">
+    <div class="card">
+      <div class="row between">
+        <strong>模型在极端值上的表现</strong>
+        <select id="ex-days">
+          <option value="90">最近 90 天</option>
+          <option value="180" selected>最近 180 天</option>
+          <option value="365">最近 1 年</option>
+          <option value="0">全部</option>
+        </select>
+      </div>
+      <p class="muted small">
+        极端事件才是预报真正有代价的地方。一个模型平时 MAE 很漂亮、一到热浪就失灵，
+        在实际使用里几乎没用。所以这里把每个条目的成绩<b>按"目标日是不是热浪日"拆开</b>，
+        再单独看它能不能提前认出热浪。
+      </p>
+      <div class="kv" id="ex-summary"></div>
+      <div class="scroll"><table id="ex-table"></table></div>
+      <p class="muted small">
+        <b>POD（命中率）</b>＝真热浪日里被预报出来的比例，越高越好；
+        <b>FAR（空报率）</b>＝预报的热浪里其实不是的比例，越低越好。
+        注意基准：本窗口有相当比例的日子本身就是热浪日，
+        "一律报热浪"也能拿到 POD=1，但 FAR 会等于非热浪日占比——
+        所以要看这两个数的组合，而不是单个。
+      </p>
     </div>
   </section>
 

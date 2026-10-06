@@ -6,6 +6,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 from . import db, products as P, scoring
+from . import mhw
 from . import regions as R
 
 PRODUCT_ENTITIES = {f"product:{code}" for code in P.PRODUCTS}
@@ -258,3 +259,103 @@ def cached(key: str, ttl: float, fn):
 
 def invalidate() -> None:
     _cache.clear()
+
+
+# ------------------------------------------------------------------ 极端值
+
+def _thresholds() -> dict:
+    """每个海区、每个 day-of-year 的 90 分位阈值。"""
+    clim = mhw.load_climatology()
+    return clim["regions"]
+
+
+def extreme_report(conn, window_days: int = 180) -> dict:
+    """把每个条目的成绩按"是否热浪日"拆开，并单独检验热浪检测能力。
+
+    为什么值得单独看：极端事件才是预报真正有代价的地方。
+    一个模型平时 MAE 很漂亮，可能一到热浪就失灵——那它在实际使用中几乎没用。
+    """
+    saved = mhw.load_saved() or {}
+    hot = mhw.mhw_day_set(saved)
+    clim = _thresholds()
+    since = _since(window_days)
+
+    entries = load_entries(conn, window_days)
+    names = entity_names(conn)
+
+    # 每条的：是否热浪日、预报是否越过阈值、真值是否越过阈值
+    by_entity: dict[str, dict] = {}
+    for e in entries:
+        if e.target_date < since:
+            continue
+        k = G_doy(e.target_date)
+        thr = clim.get(e.region, {}).get("p90", [None] * 365)
+        t = thr[k] if thr and k < len(thr) else None
+        if t is None:
+            continue
+        is_hot = (e.region, e.target_date) in hot
+        row = by_entity.setdefault(e.entity, {
+            "err_hot": [], "err_norm": [], "truth_hot": 0, "truth_norm": 0,
+            "hit": 0, "miss": 0, "fa": 0, "cr": 0,
+        })
+        err = e.forecast - e.truth
+        if is_hot:
+            row["err_hot"].append(err)
+            row["truth_hot"] += 1
+        else:
+            row["err_norm"].append(err)
+            row["truth_norm"] += 1
+        pred_hot = e.forecast > t
+        if pred_hot and is_hot:
+            row["hit"] += 1
+        elif pred_hot and not is_hot:
+            row["fa"] += 1
+        elif not pred_hot and is_hot:
+            row["miss"] += 1
+        else:
+            row["cr"] += 1
+
+    def mae(v):
+        return round(sum(abs(x) for x in v) / len(v), 3) if v else None
+
+    def rmse(v):
+        return round((sum(x * x for x in v) / len(v)) ** 0.5, 3) if v else None
+
+    rows = []
+    for entity, r in by_entity.items():
+        n_hot = len(r["err_hot"])
+        n_norm = len(r["err_norm"])
+        if n_hot + n_norm < 10:
+            continue
+        hits, miss, fa = r["hit"], r["miss"], r["fa"]
+        meta = names.get(entity, {"name": entity, "kind": "unknown"})
+        rows.append({
+            "entity": entity, "name": meta["name"], "kind": meta["kind"],
+            "n_hot": n_hot, "n_norm": n_norm,
+            "mae_hot": mae(r["err_hot"]), "mae_norm": mae(r["err_norm"]),
+            "rmse_hot": rmse(r["err_hot"]), "rmse_norm": rmse(r["err_norm"]),
+            "bias_hot": (round(sum(r["err_hot"]) / n_hot, 3) if n_hot else None),
+            "degrade": (round(mae(r["err_hot"]) / mae(r["err_norm"]) - 1, 3)
+                        if n_hot and n_norm and mae(r["err_norm"]) else None),
+            "pod": round(hits / (hits + miss), 3) if hits + miss else None,
+            "far": round(fa / (hits + fa), 3) if hits + fa else None,
+        })
+    rows.sort(key=lambda z: (z["mae_hot"] is None, z["mae_hot"] or 9))
+
+    # 热浪日的总体占比，给前端做说明
+    tot_hot = sum(r["n_hot"] for r in rows) or 0
+    tot_norm = sum(r["n_norm"] for r in rows) or 0
+    return {
+        "window_days": window_days,
+        "n_hot": tot_hot, "n_norm": tot_norm,
+        "hot_ratio": round(tot_hot / (tot_hot + tot_norm), 3) if tot_hot + tot_norm else None,
+        "rows": rows,
+        "baseline": saved.get("baseline"),
+        "series_range": saved.get("series_range"),
+    }
+
+
+def G_doy(day: str) -> int:
+    from . import grid as _G
+
+    return _G.doy_index(day)

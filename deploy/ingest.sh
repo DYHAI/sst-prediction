@@ -12,6 +12,8 @@ mkdir -p logs
 echo "===== $(date '+%Y-%m-%d %H:%M:%S') 开始 ====="
 "$PY" -m tools.ingest_truth --days 4      || echo "真值抓取有失败（可忽略，隔天会补）"
 "$PY" -m tools.ingest_products --days-ahead 8 || echo "产品抓取有失败"
+# 真值更新后重算热浪事件（判定的阈值余量很小，必须重算）
+"$PY" -m tools.build_mhw || echo "热浪重算失败"
 # CFv2 的 GRIB 每天 25MB，不清理缓存会一直涨
 # 多源后处理：每天重跑，样本会自动变多
 [ -x .venv/bin/python ] && .venv/bin/python -m tools.train_postproc --backtest || echo "后处理训练跳过"
