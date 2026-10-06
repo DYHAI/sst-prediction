@@ -242,6 +242,8 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/api/upload":
             return self._upload()
         body = self._read_json()
+        if u.path == "/api/chat":
+            return self._chat(body)
         if u.path == "/api/register":
             return self._register(body)
         if u.path == "/api/submit":
@@ -359,6 +361,70 @@ class Handler(BaseHTTPRequestHandler):
         self._send(200, out, "image/png", {"Cache-Control": "public, max-age=300"})
 
     # ------------------------------------------------------------ 长期回测
+    # ------------------------------------------------------------ 本地大模型
+    CHAT_SYSTEM = (
+        "你是一个部署在本地 Mac 上的开源大模型（Bonsai 2 27B，三元量化）。"
+        "回答用中文，简洁、直接、给结论，不要写长篇大论。"
+        "如果问题涉及你不确定的事实，明确说不确定，不要编造。"
+    )
+
+    def _chunk_write(self, data: bytes) -> None:
+        """HTTP/1.1 分块传输：<十六进制长度>CRLF<数据>CRLF。"""
+        self.wfile.write(b"%x\r\n" % len(data) + data + b"\r\n")
+        self.wfile.flush()
+
+    def _chat(self, body: dict):
+        """把浏览器的问题转给本机 llama-server，边生成边推给前端（SSE）。"""
+        import urllib.error
+        import urllib.request
+
+        cc = CFG["chat"]
+        if not cc.get("enabled"):
+            return self._err(503, "本地模型当前未开放")
+        ip = self.client_address[0]
+        if not _rate_ok(f"chat:{ip}", cc["per_ip_hourly"]):
+            return self._err(429, f"问得有点频繁，每小时最多 {cc['per_ip_hourly']} 次，稍后再来")
+
+        msgs = [m for m in (body.get("messages") or [])
+                if m.get("role") in ("user", "assistant") and (m.get("content") or "").strip()]
+        msgs = msgs[-cc["max_history"]:]
+        if not msgs or msgs[-1]["role"] != "user":
+            return self._err(400, "请先输入问题")
+
+        payload = {
+            "messages": [{"role": "system", "content": self.CHAT_SYSTEM}] + msgs,
+            "max_tokens": cc["max_tokens"],
+            "temperature": 0.7, "top_p": 0.95, "top_k": 20,
+            "stream": True,
+        }
+        req = urllib.request.Request(
+            cc["upstream"].rstrip("/") + "/v1/chat/completions",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"})
+        # 关键：显式禁用代理。
+        # 这台机器开着系统级 HTTP 代理（FlClash 127.0.0.1:7890），
+        # launchd 起的服务没有 no_proxy 环境变量，urllib 会去读系统代理设置，
+        # 把 127.0.0.1:8780 也塞进代理 → 代理返回 502。
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Accel-Buffering", "no")
+        self.send_header("Transfer-Encoding", "chunked")
+        self.end_headers()
+        try:
+            with opener.open(req, timeout=900) as resp:
+                for line in resp:
+                    if line.strip():
+                        self._chunk_write(line)
+        except urllib.error.URLError as e:
+            self._chunk_write(
+                f'data: {json.dumps({"error": f"本地模型不可用：{e}"})}\n\n'.encode())
+        except Exception as e:  # noqa: BLE001
+            print("chat 转发异常:", e)
+        finally:
+            self._chunk_write(b"")      # 结束分块
     def _backtest(self) -> dict:
         p = os.path.join(BASE, "data", "backtest_long.json")
         try:

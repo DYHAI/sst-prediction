@@ -22,6 +22,14 @@ DEFAULTS: dict = {
         "leaderboard_window_days": 60,
     },
     "rate_limit": {"submits_per_hour": 60},
+    "chat": {
+        "enabled": True,
+        "upstream": "http://127.0.0.1:8780",
+        "model_name": "Bonsai 2 27B（本地）",
+        "per_ip_hourly": 15,
+        "max_tokens": 600,
+        "max_history": 8,
+    },
 }
 
 

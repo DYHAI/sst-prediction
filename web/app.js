@@ -45,7 +45,16 @@ $$("#tabs button").forEach((b) => b.addEventListener("click", () => {
   if (b.dataset.tab === "mhw") loadMhw();
   if (b.dataset.tab === "extremes") { loadMhwBoard(); loadExtremes(); }
   if (b.dataset.tab === "longtest") loadLongtest();
+  if (b.dataset.tab === "chat") initChat();
 }));
+
+// 支持从总入口页用 #chat 直接跳过来
+window.addEventListener("hashchange", () => {
+  if (location.hash === "#chat") {
+    const btn = document.querySelector('#tabs button[data-tab="chat"]');
+    if (btn) btn.click();
+  }
+});
 
 function setMsg(el, text, ok = true) {
   const n = typeof el === "string" ? $(el) : el;
@@ -323,6 +332,115 @@ async function loadProdErrors() {
 }
 
 // ------------------------------------------------------------------ 方法说明
+// ------------------------------------------------------------------ 本地大模型
+const chatHistory = [];
+let chatBusy = false;
+
+function initChat() {
+  if (initChat.done) return;
+  initChat.done = true;
+  $("#chat-send").onclick = sendChat;
+  $("#chat-clear").onclick = () => {
+    chatHistory.length = 0;
+    const log = $("#chat-log");
+    log.querySelectorAll(".msg-row").forEach((e) => e.remove());
+    setMsg("#chat-err", "");
+  };
+  $("#chat-text").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); }
+  });
+  document.querySelectorAll("#chat-log .chip").forEach((c) => {
+    c.onclick = () => { $("#chat-text").value = c.dataset.q; sendChat(); };
+  });
+  api("/api/meta").then((m) => {
+    $("#chat-meta").textContent = "本机推理 · 不联网";
+    $("#chat-note").innerHTML =
+      `实测约 <b>17–19 tokens/s</b>，一句话几秒、长回答二三十秒。` +
+      `因为跑在 16 GB 的 Mac mini 上，为防滥用限<b>每个 IP 每小时 15 次</b>；` +
+      `它不是前沿模型，事实性问题请自行核对。`;
+  }).catch(() => {});
+}
+
+function chatBubble(role, text) {
+  const log = $("#chat-log");
+  const hint = log.querySelector(".chat-hint");
+  if (hint) hint.remove();
+  const row = document.createElement("div");
+  row.className = "msg-row " + (role === "user" ? "me" : "ai");
+  const b = document.createElement("div");
+  b.className = "bubble";
+  b.textContent = text;
+  row.appendChild(b);
+  log.appendChild(row);
+  log.scrollTop = log.scrollHeight;
+  return b;
+}
+
+async function sendChat() {
+  if (chatBusy) return;
+  const box = $("#chat-text");
+  const q = box.value.trim();
+  if (!q) return;
+  box.value = "";
+  setMsg("#chat-err", "");
+  chatBubble("user", q);
+  chatHistory.push({ role: "user", content: q });
+  const out = chatBubble("assistant", "");
+  out.classList.add("pending");
+  chatBusy = true;
+  $("#chat-send").disabled = true;
+  let answer = "";
+  let pendingReasoning = "";
+  try {
+    const resp = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: chatHistory }),
+    });
+    if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || ("HTTP " + resp.status));
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const parts = buf.split("\n\n");
+      buf = parts.pop();
+      parts.forEach((p) => {
+        const line = p.split("\n").find((l) => l.startsWith("data: "));
+        if (!line) return;
+        const payload = line.slice(6).trim();
+        if (payload === "[DONE]") return;
+        let d = null;
+        try { d = JSON.parse(payload); } catch (e) { return; }
+        if (d.error) throw new Error(String(d.error));
+        const delta = (d.choices && d.choices[0] && d.choices[0].delta) || {};
+        // 思维链单独摘掉，不塞进正文（这个模型默认会先想一大段）
+        if (delta.reasoning_content) pendingReasoning += delta.reasoning_content;
+        if (delta.content) {
+          answer += delta.content;
+          out.textContent = answer;
+          const log = $("#chat-log");
+          log.scrollTop = log.scrollHeight;
+        }
+      });
+    }
+    if (!answer.trim()) {
+      out.textContent = pendingReasoning.trim()
+        ? "（模型只在思考，没有输出正文）" : "（没有输出）";
+    }
+    chatHistory.push({ role: "assistant", content: answer });
+  } catch (e) {
+    out.textContent = answer || "出错了";
+    setMsg("#chat-err", e.message, false);
+  } finally {
+    out.classList.remove("pending");
+    chatBusy = false;
+    $("#chat-send").disabled = false;
+  }
+}
+
 // ------------------------------------------------------------------ 海洋热浪
 let mhwData = null;
 
@@ -843,4 +961,8 @@ $("#footer").innerHTML = `<a href="https://www.playai.org.cn/">← playai.org.cn
   renderLocalModels();
   renderModelReport();
   loadRounds();
+  if (location.hash === "#chat") {
+    const btn = document.querySelector('#tabs button[data-tab="chat"]');
+    if (btn) btn.click();
+  }
 })();

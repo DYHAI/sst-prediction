@@ -53,6 +53,7 @@
       <button data-tab="extremes">极端值比拼</button>
       <button data-tab="longtest">长期回测</button>
       <button data-tab="maps">海温图</button>
+      <button data-tab="chat">问本地大模型</button>
       <button data-tab="about">方法与文献</button>
     </nav>
   </div>
@@ -378,6 +379,43 @@ time,lat,lon,sst</pre>
   </section>
 
   <!-- ============================ 海温图 ============================ -->
+  <!-- ============================ 本地大模型 ============================ -->
+  <section id="tab-chat" class="hidden">
+    <div class="card">
+      <div class="row between">
+        <strong>问本地大模型</strong>
+        <span class="muted small" id="chat-meta"></span>
+      </div>
+      <p class="muted small">
+        这个聊天框后面是跑在站长这台 Mac mini 上的 <b>27B 大模型</b>
+        （Bonsai 2 27B，三元量化 5.95 GB，用本机 GPU 推理）。
+        不联网、不调用任何云 API，你的问题不会离开这台机器。
+      </p>
+      <p class="muted small" id="chat-note"></p>
+
+      <div id="chat-log" class="chat-log">
+        <div class="chat-hint">
+          可以问它海温、海洋热浪、预报方法，也可以随便聊。试试：
+          <div class="chips">
+            <button class="chip" data-q="用三句话解释海洋热浪是怎么形成的。">海洋热浪怎么形成</button>
+            <button class="chip" data-q="南海海温预报为什么很难打赢持续性基线？">为什么难打赢持续性</button>
+            <button class="chip" data-q="30 公里/小时等于多少米/秒？走 2.5 小时多少公里？">算一道题</button>
+            <button class="chip" data-q="用一句话介绍一下你自己。">介绍一下你自己</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="chat-input">
+        <textarea id="chat-text" rows="2" placeholder="输入问题，回车发送（Shift+回车换行）"></textarea>
+        <div class="chat-actions">
+          <button id="chat-clear" class="small">清空</button>
+          <button id="chat-send" class="primary">发送</button>
+        </div>
+      </div>
+      <div id="chat-err" class="msg"></div>
+    </div>
+  </section>
+
   <section id="tab-maps" class="hidden">
     <div class="card">
       <div class="row between">

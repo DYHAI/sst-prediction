@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.playai.sst.llm</string>
+
+  <!-- 本地大模型服务：Bonsai 2 27B（三元量化，5.95 GB），走 Metal/GPU -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/dingding/src/llama.cpp/build/bin/llama-server</string>
+    <string>-m</string>
+    <string>/Users/dingding/models/Ternary-Bonsai-2-27B-PTQ1_0.gguf</string>
+    <string>-ngl</string><string>99</string>
+    <string>-c</string><string>4096</string>
+    <string>-t</string><string>8</string>
+    <string>--host</string><string>127.0.0.1</string>
+    <string>--port</string><string>8780</string>
+    <string>--no-webui</string>
+    <string>-np</string><string>2</string>
+  </array>
+
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+
+  <!-- 模型 6 GB，启动时不要让系统觉得它在抢内存 -->
+  <key>ProcessType</key><string>Interactive</string>
+
+  <key>StandardOutPath</key>
+  <string>/Users/dingding/Library/Logs/sst-llm.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/dingding/Library/Logs/sst-llm.err.log</string>
+</dict>
+</plist>

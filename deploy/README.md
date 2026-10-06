@@ -102,6 +102,33 @@ curl -s http://127.0.0.1:8770/healthz
 | `com.playai.sst` | Web 服务，`KeepAlive=true`，崩了自动重启 | 开机 + 常驻 |
 | `com.playai.sst.tunnel` | cloudflared 隧道，把 `sst.playai.org.cn` 打到 8770 | 开机 + 常驻 |
 | `com.playai.sst.ingest` | 抓真值 + 抓官方产品 + 清缓存 | 每天北京时间 08:30 / 20:30 |
+| `com.playai.sst.llm` | 本地大模型（Bonsai 2 27B，GPU 推理，端口 8780） | 开机 + 常驻 |
+
+### 本地大模型服务
+
+网页上的「问本地大模型」聊天框，后端是 `llama-server` + Bonsai 2 27B：
+
+```bash
+# 模型（5.95 GB，三元量化 1.75 bit）
+~/models/Ternary-Bonsai-2-27B-PTQ1_0.gguf
+
+# 需要厂商的 llama.cpp 分支（三元核，upstream 不支持 ggml type 143）
+git clone https://github.com/PrismML-Eng/llama.cpp   # 国内需走代理
+cd llama.cpp && cmake -B build -DGGML_METAL=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j 12
+
+# 服务（已由 launchd 托管，见 com.playai.sst.llm.plist）
+llama-server -m <模型> -ngl 99 -c 4096 -t 8 --host 127.0.0.1 --port 8780 --no-webui -np 2
+```
+
+网站把 `/api/chat` 转发到 8780，**边生成边推给前端（SSE）**，并按 IP 限流
+（每小时 15 次，配置在 `data/config.json` 的 `chat` 段）。
+
+> ⚠️ **踩过的坑：必须给这个转发显式禁用代理。**
+> 这台机器开着系统级 HTTP 代理（FlClash `127.0.0.1:7890`）。
+> 交互式 shell 里有 `no_proxy` 所以本地请求正常，但 launchd 起的服务没有这个变量，
+> urllib 会去读 **macOS 系统代理设置**，把 `127.0.0.1:8780` 也塞进代理 → 一律 502。
+> 代码里用 `build_opener(ProxyHandler({}))` 显式绕开。
 
 抓数脚本是 `deploy/ingest.sh`，日志写在 `logs/ingest.log`。
 

@@ -94,6 +94,28 @@ footer{padding:18px 18px 46px;position:relative;z-index:1}
 .deco-foot .deco{width:26px;opacity:.55}
 .ai-item{border-left:3px solid var(--aqua);padding:2px 0 2px 12px;margin:12px 0}
 .ai-item b{color:var(--sea-deep)}
+
+/* ---------------- 本地大模型聊天 ---------------- */
+.chat-log{margin-top:12px;max-height:520px;overflow-y:auto;
+  border:1px solid var(--line);border-radius:12px;padding:14px;background:#fbfdff}
+.chat-hint{color:var(--muted);font-size:13px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.chip{font-size:12.5px;padding:6px 11px;border-radius:20px;background:#eef7fb;
+  border:1px solid var(--line);color:var(--sea-mid);cursor:pointer}
+.chip:hover{background:#e2f2f9}
+.msg-row{display:flex;margin:12px 0;gap:9px}
+.msg-row.me{justify-content:flex-end}
+.bubble{max-width:78%;padding:10px 13px;border-radius:13px;font-size:14.5px;
+  line-height:1.75;white-space:pre-wrap;word-break:break-word}
+.msg-row.ai .bubble{background:#fff;border:1px solid var(--line);border-top-left-radius:4px}
+.msg-row.me .bubble{background:linear-gradient(180deg,var(--sea),var(--sea-mid));
+  color:#fff;border-top-right-radius:4px}
+.bubble.pending:after{content:"▋";animation:blink .9s steps(1) infinite;color:var(--sea)}
+@keyframes blink{50%{opacity:0}}
+.chat-input{margin-top:12px}
+.chat-input textarea{width:100%;box-sizing:border-box;border:1px solid var(--line);
+  border-radius:11px;padding:11px 13px;font:inherit;resize:vertical;background:#fbfdfe}
+.chat-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:8px}
 .kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:7px;margin-top:10px}
 .kv .cell b{font-variant-numeric:tabular-nums}
 summary{cursor:pointer}
