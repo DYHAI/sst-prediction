@@ -391,10 +391,17 @@ class Handler(BaseHTTPRequestHandler):
         if not msgs or msgs[-1]["role"] != "user":
             return self._err(400, "请先输入问题")
 
+        # 一律关掉"思考模式"。这个模型是推理模型，默认会先输出一大段思维链：
+        #   · 600 token 的预算经常被思考整段吃掉，正文一个字都没轮到
+        #   · 实测把预算提到 2400 token 仍然跑不完——1869 条思考增量、0 条正文、耗时 103 秒
+        # 在 18 tokens/s 的共享机器上，一个问题占住 GPU 两分钟不可接受，
+        # 所以固定 enable_thinking=false：37 秒 → 6 秒，答案反而更直接。
+        thinking = False
         payload = {
             "messages": [{"role": "system", "content": self.CHAT_SYSTEM}] + msgs,
-            "max_tokens": cc["max_tokens"],
+            "max_tokens": cc["max_tokens_thinking"] if thinking else cc["max_tokens"],
             "temperature": 0.7, "top_p": 0.95, "top_k": 20,
+            "chat_template_kwargs": {"enable_thinking": thinking},
             "stream": True,
         }
         req = urllib.request.Request(

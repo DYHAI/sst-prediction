@@ -28,6 +28,7 @@ DEFAULTS: dict = {
         "model_name": "Bonsai 2 27B（本地）",
         "per_ip_hourly": 15,
         "max_tokens": 600,
+        "max_tokens_thinking": 2400,
         "max_history": 8,
     },
 }

@@ -356,6 +356,8 @@ function initChat() {
     $("#chat-meta").textContent = "本机推理 · 不联网";
     $("#chat-note").innerHTML =
       `实测约 <b>17–19 tokens/s</b>，一句话几秒、长回答二三十秒。` +
+      `已关掉模型的"深思模式"——它默认会先写一大段推理草稿，` +
+      `在这台机器上一道题要两三分钟且常常写不完；关掉后 <b>6 秒左右</b>直出答案。` +
       `因为跑在 16 GB 的 Mac mini 上，为防滥用限<b>每个 IP 每小时 15 次</b>；` +
       `它不是前沿模型，事实性问题请自行核对。`;
   }).catch(() => {});
@@ -429,8 +431,10 @@ async function sendChat() {
     }
     handleLine(buf);
     if (!answer.trim()) {
+      // 兜底：万一还只出思考链，把思考内容显示出来，别让用户看着空白
       out.textContent = pendingReasoning.trim()
-        ? "（模型只在思考，没有输出正文）" : "（没有输出）";
+        ? "（回答被截断了，以下是模型的推理过程）\n\n" + pendingReasoning.trim().slice(-1200)
+        : "（没有输出，请再试一次或换个问法）";
     }
     chatHistory.push({ role: "assistant", content: answer });
   } catch (e) {
