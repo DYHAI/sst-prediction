@@ -13,8 +13,15 @@
     <string>-m</string>
     <string>/Users/dingding/models/Ternary-Bonsai-2-27B-PTQ1_0.gguf</string>
     <string>-ngl</string><string>99</string>
-    <string>-c</string><string>4096</string>
+    <!-- 65536 总上下文、2 个槽位（每槽 32768）：
+         openclaw 的系统提示词 + 54 个工具定义就有 12474 token，
+         8K 装不下会报 Context overflow，所以按 agent 用量给足 -->
+    <string>-c</string><string>49152</string>
     <string>-t</string><string>8</string>
+    <string>--alias</string><string>bonsai-27b</string>
+    <!-- 全局关掉思考模式：这个模型默认会写一大段推理草稿，
+         600 token 常被吃光、2400 token 也跑不完，在 18 t/s 的机器上不可接受 -->
+    <string>--reasoning</string><string>off</string>
     <string>--host</string><string>127.0.0.1</string>
     <string>--port</string><string>8780</string>
     <string>--no-webui</string>

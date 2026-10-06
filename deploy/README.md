@@ -227,3 +227,81 @@ curl -s "http://127.0.0.1:8770/api/leaderboard?days=60" | head -c 400
 ```
 
 `admin_token` 在 `data/config.json` 里（首次启动自动生成）。
+
+---
+
+## OpenClaw 接入本地 27B
+
+[OpenClaw](https://openclaw.ai)（`openclaw/openclaw`，MIT，GitHub 39 万星）是一个
+个人 AI 助手网关：一端接各家聊天平台（Discord / Telegram / iMessage / Slack…20+），
+另一端接模型。它自带 `llama-cpp` 插件，**支持直接连一个已有的 llama-server**，
+所以我们的 Bonsai 2 27B 可以直接接进去。
+
+### 安装（不需要 sudo）
+
+`/usr/local` 不可写，所以把 npm 前缀放到用户目录：
+
+```bash
+npm install -g --prefix ~/.npm-global \
+  --allow-scripts=openclaw,@google/genai,esbuild,koffi,protobufjs \
+  openclaw@latest
+ln -sf ~/.npm-global/bin/openclaw /opt/homebrew/bin/openclaw
+openclaw plugins install @openclaw/llama-cpp-provider
+```
+
+> npm 默认会拦下几个包的构建脚本，其中 **esbuild 是必须的**（不跑它的 postinstall 就起不来），
+> 所以要用 `--allow-scripts` 显式放行。
+
+### 配置（连接已有服务器，不让它自己管进程）
+
+关键点：**不要写 `localService`**。文档说得很明确：
+`models.providers.llama-cpp.localService` 存在 = OpenClaw 托管进程；
+不存在 = `baseUrl` 指向一个已有端点。
+
+```json5
+// openclaw config patch --file <这个文件>
+{
+  models: { providers: { "llama-cpp": {
+    baseUrl: "http://127.0.0.1:8780",
+    models: [{
+      id: "bonsai-27b", name: "Bonsai 2 27B (local, ternary)",
+      reasoning: false, input: ["text"],
+      contextWindow: 24576, maxTokens: 4096,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      compat: { supportsTools: true },
+    }],
+  }}},
+}
+```
+
+```bash
+openclaw models set llama-cpp/bonsai-27b                     # 设为默认模型
+openclaw models auth paste-token --provider llama-cpp        # 喂个占位 token（服务不校验）
+openclaw gateway install                                     # 装成 LaunchAgent，开机自启
+```
+
+### 为 Agent 调大上下文（重要）
+
+OpenClaw 的系统提示词 + **54 个工具定义就有 12,474 token**，
+按网站聊天那种 4K/8K 上下文会直接报 `Context overflow`。实测梯度：
+
+| 总上下文 `-c` | 槽位 `-np` | 每槽 | 结果 |
+|---|---|---|---|
+| 8192 | 2 | 4096 | ✗ 溢出 |
+| 16384 | 2 | 8192 | ✗ 溢出（实测 12,474 token） |
+| 32768 | 2 | 16384 | △ 能跑但输出被截断 |
+| **49152** | **2** | **24576** | ✓ 提示词 + 输出 + 多轮都够 |
+
+内存代价：24K/槽时模型 + KV 合计约 **11 GB wired**，16 GB 机器上只剩 1.2–0.5 GB。
+
+### 实测效果
+
+| 任务 | 耗时 | 结果 |
+|---|---|---|
+| 单句问答（首轮，提示词未缓存） | 56 s | ✅ 正确 |
+| 追问（提示词缓存命中） | **2.6 s** | ✅ 记得上一轮内容 |
+| **调用 shell 工具列文件** | 18 s | ✅ 正确列出两个 gguf 及大小 |
+| 网站聊天页（同一台 llama-server） | 6 s | ✅ 流式输出 |
+
+> `llama-server` 用 `--reasoning off` 全局关掉了思考模式。这个模型默认会写一大段推理草稿，
+> 在 18 t/s 的机器上一道题要两三分钟且常常写不完；关掉之后 agent 单轮延迟从分钟级降到几十秒。
