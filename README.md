@@ -373,6 +373,31 @@ node tools/render_check.js          # 每个页签的渲染（需要服务在 87
 加新页签时忘了同步"隐藏/显示区块"的那个列表，点新页签会把所有区块都藏起来，
 表现成一片空白——而接口是好的、HTML 也是好的，静态检查完全看不出来。
 
+## 神经网络引擎（ANE）实测
+
+`tools/ane_vs_gpu.py`：把模型转成 Core ML，用四个计算单元分别跑
+（`CPU_ONLY` / `CPU_AND_GPU` / `CPU_AND_NE` / `ALL`），量出各引擎的真实差距。
+
+**实测结论（Apple M6，多次重复一致）：**
+
+| 模型类型 | 只用 CPU | CPU+GPU | **CPU+ANE** | 全部 |
+|---|---|---|---|---|
+| 南海 U-Net（卷积为主） | 1.04 ms | 1.02–1.06 ms | **0.47–0.63 ms** | **0.31 ms** |
+| Transformer 层（注意力+前馈） | 2.13 ms | **1.44–1.52 ms** | 2.27–2.29 ms | 2.19 ms |
+
+- **卷积网络**：ANE 比 GPU 快约 **2 倍**；而 GPU 对小卷积模型几乎没加速（1.02 vs 1.04）
+- **Transformer**：反过来，**GPU 最快，ANE 没有收益**（甚至比纯 CPU 略慢）
+
+物理上说得通：ANE 的强项是卷积那种高算术强度的规则计算；
+注意力 + 前馈是矩阵乘主导，GPU 的 Metal 路径更合适。
+
+> 想在别的机器上复现，必须在有 coremltools **预编译 wheel** 的解释器里跑：
+> Python 3.14 上 PyPI 只给源码包（编出来缺原生扩展），用 3.9 即可：
+> `python3 -m venv /tmp/cmvenv && /tmp/cmvenv/bin/pip install coremltools numpy torch`
+
+> 附带一个反例：llama.cpp 跑的 Bonsai 2 27B 走的是 Metal（GPU），
+> 二进制里连 CoreML 都没链接，所以**神经网络引擎在 LLM 这条路线上完全用不上**。
+
 ## 目录结构
 
 ```
