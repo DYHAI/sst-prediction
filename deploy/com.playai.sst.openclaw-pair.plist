@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.playai.sst.openclaw-pair</string>
+
+  <!-- 每 5 秒看一次 OpenClaw 有没有新的设备配对请求，有就自动批。
+       想改成手动：touch data/openclaw_autoapprove.disabled -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>/Users/dingding/srv/SST_Prediction/tools/openclaw_autoapprove.py</string>
+  </array>
+
+  <key>StartInterval</key>
+  <integer>5</integer>
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/dingding/Library/Logs/openclaw-autoapprove.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/dingding/Library/Logs/openclaw-autoapprove.err.log</string>
+</dict>
+</plist>

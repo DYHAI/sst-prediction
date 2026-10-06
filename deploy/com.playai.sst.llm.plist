@@ -12,6 +12,17 @@
     <string>/Users/dingding/src/llama.cpp/build/bin/llama-server</string>
     <string>-m</string>
     <string>/Users/dingding/models/Ternary-Bonsai-2-27B-PTQ1_0.gguf</string>
+    <!-- 视觉塔（0.63 GB，Q8_0）：加了这一行 llama-server 才能收图，
+         OpenAI 兼容接口的 image_url 会被编码进模型的原生多模态输入。
+         不传图时这部分权重只是驻留内存，不参与计算。 -->
+    <string>--mmproj</string>
+    <string>/Users/dingding/models/Ternary-Bonsai-2-27B-mmproj-Q8_0.gguf</string>
+    <!-- 视觉编码器的激活缓冲区是这台机器上最贵的一块内存：
+         默认一张图会切成最多 4096 个图像 token，算一次额外吃 2~3 GB。
+         16 GB 统一内存的机器必须封顶。1024 是 Qwen-VL 系列官方建议的
+         功能下限（再低会影响"图里东西在哪"这类定位任务）。 -->
+    <string>--image-max-tokens</string><string>1024</string>
+    <string>--image-min-tokens</string><string>256</string>
     <string>-ngl</string><string>99</string>
     <!-- 65536 总上下文、2 个槽位（每槽 32768）：
          openclaw 的系统提示词 + 54 个工具定义就有 12474 token，

@@ -305,3 +305,143 @@ OpenClaw 的系统提示词 + **54 个工具定义就有 12,474 token**，
 
 > `llama-server` 用 `--reasoning off` 全局关掉了思考模式。这个模型默认会写一大段推理草稿，
 > 在 18 t/s 的机器上一道题要两三分钟且常常写不完；关掉之后 agent 单轮延迟从分钟级降到几十秒。
+
+---
+
+## openclaw.playai.org.cn：把 OpenClaw 挂到公网
+
+### 链路
+
+```
+浏览器 ──https──> Cloudflare 边缘 ──隧道──> cloudflared(本机)
+                                              ├─> 127.0.0.1:8770  SST 网站
+                                              └─> 127.0.0.1:18789 OpenClaw 网关
+                                                    └─> 127.0.0.1:8780 llama-server
+```
+
+```bash
+# 1) 隧道加一条 ingress（见本目录 cloudflared-config.yml）
+# 2) 绑 DNS
+cloudflared tunnel route dns sst openclaw.playai.org.cn
+launchctl kickstart -k gui/$(id -u)/com.playai.sst.tunnel
+
+# 3) 登录链接（token 在 ~/.openclaw/openclaw.json 的 gateway.auth.token）
+open -a Safari "https://openclaw.playai.org.cn/#token=<token>"
+```
+
+### 3 个必须配的网关开关（少一个就是白屏 / 403）
+
+| 现象 | 配置项 | 值 |
+|---|---|---|
+| HTTP 403 `proxy_attribution_required` | `gateway.trustedProxies` | `["127.0.0.1/32","::1/128"]` |
+| WebSocket `origin not allowed` | `gateway.publicOrigin`<br>`gateway.controlUi.allowedOrigins` | `https://openclaw.playai.org.cn`<br>再加 `http://127.0.0.1:18789` 让本机面板也用 |
+| `device pairing required` | 设备配对 | 见下一节 |
+
+`gateway.trustedProxies` 是"我信任这个上游代理报的客户端 IP"。cloudflared 从
+127.0.0.1 连进来，不写这一条，所有带 `X-Forwarded-*` 的请求都会被 403 挡掉，
+理由是不允许"无法归属来源的代理流量"。
+
+### 设备配对：为什么每个新浏览器都要批一次
+
+网关只监听环回地址，隧道来的请求一定带 `X-Forwarded-*`。OpenClaw 判定这种
+连接 `locality = remote`，于是**不会**走"本机静默配对"的快捷路径，
+任何新浏览器第一次连上来都会停在 **Gateway pairing approval required**。
+
+本项目用一个看门狗自动批：
+
+| 文件 | 作用 |
+|---|---|
+| `tools/openclaw_autoapprove.py` | 5 秒一次 `openclaw devices list --json`，有 pending 就 `approve` |
+| `deploy/com.playai.sst.openclaw-pair.plist` | 上面那个脚本的 LaunchAgent |
+
+```bash
+# 想改回纯手动
+touch data/openclaw_autoapprove.disabled
+# 手动批一次
+openclaw devices list
+openclaw devices approve <requestId>
+```
+
+**安全边界（务必知道）**：配对请求只有在 token 校验**通过之后**才会生成，
+所以自动批准等于把边界从"token + 设备批准"降成"只有 token"。而 agent 带着
+shell 工具，拿到 token 的人可以让它在这台 Mac 上执行命令——**token 就是这台
+机器的远程执行权限，请当密码保管**。脚本里 `operator.admin` 一律不自动批，
+留人工处理。
+
+要做真正的强隔离，应该上 Cloudflare Access（邮箱验证码）+
+`gateway.auth.mode = "trusted-proxy"`，见 `docs/gateway/cloudflare-access.md`。
+
+### 图片：模型原生看图
+
+Bonsai 2 27B 自带视觉塔，仓库里那个 0.63 GB 的 mmproj 就是它：
+
+```bash
+huggingface-cli download prism-ml/Ternary-Bonsai-2-27B-gguf \
+  Ternary-Bonsai-2-27B-mmproj-Q8_0.gguf --local-dir ~/models
+```
+
+`llama-server` 加 `--mmproj <那个文件>` 就能收图（OpenAI 兼容接口的
+`image_url`，base64 直接进模型原生多模态输入）。OpenClaw 侧只需要把模型
+的 `input` 从 `["text"]` 改成 `["text","image"]`，网关就会把原图直投模型，
+不再走"先让别的模型描述一遍"的降级路径。
+
+**16 GB 机器的保命参数**（不加会把内存打爆）：
+
+```
+--image-max-tokens 1024 --image-min-tokens 256
+```
+
+视觉编码器的激活缓冲区是按最长边 4096 个图像 token 预分配的，
+一张图会让常驻内存从 6.6 GB 涨到 10 GB 以上，直接触发 2.6 GB 的 swap。
+1024 是 Qwen-VL 系列官方建议的功能下限，再低会影响定位类任务。加上之后
+峰值 10.3 GB、swap 掉到 0.9 GB，能稳住。
+
+实测：320 px 的图端到端 4.4 s 出中文描述；走
+`openclaw infer image describe --file` 也会直接落到 `llama-cpp/bonsai-27b`。
+
+### 语音：能听能转，但实时对话接不上
+
+**出声（TTS）**——`tts.provider = "tts-local-cli"`，用 macOS 自带 `say`，
+零下载：
+
+```json5
+{ tts: { auto: "inbound", provider: "tts-local-cli", providers: { "tts-local-cli": {
+  command: "/usr/bin/say",
+  args: ["-o", "{{OutputPath}}", "--data-format=LEI16@22050", "{{Text}}"],
+  outputFormat: "wav", timeoutMs: 120000,
+}}}}
+```
+
+> 坑：macOS 26 的 `say -o out.wav "..."` 会直接报
+> `Opening output file failed: fmt?`，光看扩展名它推不出格式，
+> 必须显式给 `--data-format`。`.aiff` 反而不用。
+
+`auto: "inbound"` 的语义是"你发语音条，我就用语音回"，平时打字就是纯文字。
+想临时让它念一句，在聊天框里发 `/tts` 或 `/tts latest`。
+
+**收声（STT）**——`tools.media.models` 里挂一个 CLI 包装脚本
+`~/.openclaw/bin/openclaw-stt.sh`：
+
+```
+任意音频 ──ffmpeg──> 16 kHz 单声道 WAV ──whisper-cli -nt -l auto──> 纯文本
+```
+
+```json5
+{ tools: { media: { models: [{ type: "cli",
+  command: "/Users/dingding/.openclaw/bin/openclaw-stt.sh",
+  args: ["{{AttachmentPath}}"], capabilities: ["audio"],
+  maxBytes: 26214400, timeoutSeconds: 180 }],
+  audio: { enabled: true, echoTranscript: true } } }
+}
+```
+
+> 坑：whisper.cpp 只吃 16-bit PCM WAV，浏览器录音是 webm/opus、手机语音条是
+> ogg/opus 或 m4a，不转码直接报 `failed to read audio`。所以必须包一层 ffmpeg。
+> 模型用 `ggml-small.bin`（488 MB），中文够用，一条语音条约 1 秒出文字。
+
+**接不上的那块**：Control UI 的麦克风实时听写走的是
+`talk.session.create { mode: "transcription", transport: "gateway-relay" }`，
+这条链路要的是**流式** STT（Deepgram / OpenAI / ElevenLabs / Mistral / xAI），
+本地 whisper.cpp 是批处理模型，没有流式接口，所以浏览器上"按住说话"用不了。
+要用实时语音对话，得配一个云 STT key；或者退而求其次，把语音录成文件用
+附件发进来（这条路是通的）。

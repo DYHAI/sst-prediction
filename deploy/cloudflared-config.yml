@@ -1,0 +1,21 @@
+tunnel: <tunnel-uuid>
+credentials-file: /Users/<you>/.cloudflared/<tunnel-uuid>.json
+
+# 国内到 Cloudflare 的 UDP 7844 常被限速/阻断，走 http2(TCP 443) 更稳
+protocol: http2
+
+originRequest:
+  connectTimeout: 30s
+  tcpKeepAlive: 30s
+
+ingress:
+  - hostname: sst.playai.org.cn
+    service: http://127.0.0.1:8770
+  - hostname: www.playai.org.cn
+    service: http://127.0.0.1:8770
+  - hostname: playai.org.cn
+    service: http://127.0.0.1:8770
+  # OpenClaw 控制台（自带 token 认证，见 ~/.openclaw/openclaw.json 的 gateway.auth）
+  - hostname: openclaw.playai.org.cn
+    service: http://127.0.0.1:18789
+  - service: http_status:404
