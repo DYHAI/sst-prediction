@@ -35,7 +35,7 @@
       <li>真值：NOAA OISST v2.1（任何人都能下载复现）</li>
       <li>基准：逐格取最强的官方产品，和它打平得 50 分</li>
       <li>可以上传自己的模型：<b>CSV / NetCDF / Parquet</b>，自动解析、评测、上榜</li>
-      <li>站内自己训了 LIM、XGBoost、CatBoost、LightGBM、多源后处理、U-Net 场订正</li>
+      <li>榜单只跑官方产品和参赛者，站方不派自己的模型下场比赛</li>
     </ul>
     <span class="url">sst.playai.org.cn</span>
   </a>
@@ -56,37 +56,37 @@
     <span class="url">mpa.playai.org.cn</span>
   </a>
 
-  <a class="card live" href="https://sst.playai.org.cn/#chat">
+  <div class="card off">
     <div class="head">
-      <span class="dot"></span>
+      <span class="dot off"></span>
       <h2>问本地大模型</h2>
-      <span class="tag">在线</span>
+      <span class="tag off">已停</span>
     </div>
     <p>直接在网页上和一台跑在 Mac mini 上的 <b>27B 大模型</b>对话
       （Bonsai 2 27B，三元量化，本机 GPU 推理）。</p>
     <ul class="facts">
       <li><b>不联网</b>：不调用任何云 API，问题不离开那台机器</li>
       <li>实测约 17–19 tokens/s，一句话几秒</li>
-      <li>入口在南海海温擂台页的「问本地大模型」标签</li>
+      <li>模型服务当前未运行，擂台页的聊天入口会自动隐藏</li>
     </ul>
     <span class="url">sst.playai.org.cn → 问本地大模型</span>
-  </a>
+  </div>
 
-  <a class="card live" href="https://openclaw.playai.org.cn/">
+  <div class="card off">
     <div class="head">
-      <span class="dot"></span>
+      <span class="dot off"></span>
       <h2>OpenClaw 智能体</h2>
-      <span class="tag">需 token</span>
+      <span class="tag off">已停</span>
     </div>
     <p>把本机那台 <b>27B</b> 接到 <b>OpenClaw</b> 上：会调工具、能读文件、
       会记上下文，还能直接<b>看图</b>，回复可以配语音。</p>
     <ul class="facts">
       <li>同一个本地模型，但换了 agent 外壳（工具 / 多轮 / 图片）</li>
       <li>图片由模型自带的视觉塔直接理解，不走云端</li>
-      <li>入口受 gateway token 保护，第一次连要批准设备</li>
+      <li>网关当前未运行，域名返回 502</li>
     </ul>
     <span class="url">openclaw.playai.org.cn</span>
-  </a>
+  </div>
 
   <div class="card off">
     <div class="head">
