@@ -669,14 +669,20 @@ function renderMhwYearly(yearly) {
     h += `</tr>`;
   });
   $("#mhw-yearly-table").innerHTML = h + "</tbody>";
-  // 用 CSS 条形图代替图片，省一次请求
+  // 用 CSS 条形图代替图片，省一次请求。
+  // 布局交给 .barchart 的 grid——之前是把每个格子拼成 inline-block 塞进
+  // 居中的图片容器里，窄屏下文字会折行、柱子挤成一团。
+  const peak = Math.max(1, ...yearly.map((y) =>
+    state.meta.regions.reduce((s, r) => s + (y.regions[r.code] || 0), 0) / 7));
   let bars = yearly.map((y) => {
     const tot = state.meta.regions.reduce((s, r) => s + (y.regions[r.code] || 0), 0) / 7;
-    return `<div style="margin:3px 0"><span class="muted small" style="display:inline-block;width:44px">${y.year}</span>
-      <span style="display:inline-block;height:12px;width:${Math.min(100, tot / 3.65)}%;background:#0b7ea8;border-radius:3px"></span>
-      <span class="muted small">${tot.toFixed(0)} 天/海区</span></div>`;
+    const w = Math.max(1.5, tot / peak * 100);
+    return `<div class="bar">
+      <span class="yr">${y.year}</span>
+      <span class="track"><span class="fill" style="width:${w.toFixed(1)}%"></span></span>
+      <span class="val">${tot.toFixed(0)} 天</span></div>`;
   }).join("");
-  $("#mhw-yearly").outerHTML = `<div id="mhw-yearly">${bars}</div>`;
+  $("#mhw-yearly").innerHTML = bars;
 }
 
 function loadMhwChart() {
@@ -857,7 +863,7 @@ const AI_MODELS = [
   ["XiHe 羲和（全球海洋涡分辨预报）", "Wang Xiang et al., 2024, arXiv:2402.02995", "纯数据驱动的全球海洋预报模型，能分辨中尺度涡，是「AI 做海洋」的代表工作。"],
   ["深度神经网络预报涡旋海洋", "Cui et al., 2025, <i>Nature Communications</i>", "证明神经网络可以在涡分辨尺度上预报海洋状态，推理成本远低于数值模式。"],
   ["CNN 做 SST 资料同化", "Zavala-Romero et al., 2025, <i>Ocean Science</i>", "用卷积网络替代/加速传统最优插值，说明数据驱动方法在 SST 分析这一环也已经可用。"],
-  ["南海全球海洋预报的深度学习订正", "Chen et al., 2026, <i>Frontiers in Marine Science</i>", "专门针对<b>南海</b>做全球海洋预报的机器学习订正，和本站的目标区域完全重合，值得后续对照。"],
+  ["南海全球海洋预报的深度学习订正", "Chen et al., 2026, <i>Frontiers in Marine Science</i>", "专门针对<b>南海</b>做全球海洋预报的机器学习订正，和本擂台的目标区域完全重合，值得后续对照。"],
   ["扩散模型做 SST 空间降尺度", "Wang Shuo et al., 2024, <i>Remote Sensing</i>", "把粗分辨率 SST 用扩散模型超分到细网格，思路可以直接用来做我们 2° 粗格点模型的后处理。"],
 ];
 

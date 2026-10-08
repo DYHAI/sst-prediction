@@ -239,8 +239,6 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(service.products_for(conn, q1.get("target", "")))
         if path == "/api/map":
             return self._map(q1)
-        if path == "/api/model_report":
-            return self._json(self._model_report())
         if path == "/api/mhw":
             return self._json(self._mhw(q1.get("days", "180")))
         if path == "/api/extremes":
@@ -297,7 +295,10 @@ class Handler(BaseHTTPRequestHandler):
             "domain": CFG["domain"],
             "regions": [r.as_dict() for r in R.REGIONS],
             "horizons": list(R.HORIZONS),
-            "products": P.PRODUCTS,
+            # 只暴露官方产品。P.PRODUCTS 里还留着本站自研的那批模型定义，
+            # 它们不参赛了，没必要再发给浏览器（前端也不该拿到）。
+            "products": {k: v for k, v in P.PRODUCTS.items()
+                         if k in P.REFERENCE_PRODUCTS},
             "scoring": {
                 "weights": sc["weights"],
                 "bias_tau": sc["bias_tau"],
@@ -364,11 +365,15 @@ class Handler(BaseHTTPRequestHandler):
                 targets = [r["target_date"] for r in conn.execute(
                     "SELECT DISTINCT target_date FROM products WHERE target_date > ?"
                     " ORDER BY target_date LIMIT 6", (last,))]
+                # 只取官方产品。这里以前写死了一串代号（含 ours/xgboost/stack/unet），
+                # 那是本站自己的模型——它们已经下架，不能再出现在页面上。
+                ref_ph = ",".join("?" for _ in P.REFERENCE_PRODUCTS)
                 for t in targets:
                     doys[t] = [(dict(r)) for r in conn.execute(
                         "SELECT product, region, horizon, value FROM products"
-                        " WHERE target_date = ? AND product IN ('hycom','cfs','ours','xgboost','stack','unet')"
-                        " ORDER BY horizon, region", (t,))]
+                        " WHERE target_date = ? AND product IN (" + ref_ph + ")"
+                        " ORDER BY horizon, region",
+                        (t, *P.REFERENCE_PRODUCTS))]
             for t, rows in doys.items():
                 k = mhw.G.doy_index(t)
                 for r in rows:
@@ -549,35 +554,11 @@ class Handler(BaseHTTPRequestHandler):
 
         return service.cached(f"mhwb:{days}", 60.0, build)
 
-    def _model_report(self) -> dict:
-        """把本站各模型的验证结果汇总给前端（都是本地生成的 json）。"""
-        out: dict = {"lim": None, "postproc": None, "unet": None}
-        files = {
-            "lim": os.path.join(BASE, "data", "model_validation.json"),
-            "postproc": os.path.join(BASE, "data", "models", "postproc.json"),
-            "unet": os.path.join(BASE, "data", "models", "unet.meta.json"),
-        }
-        for k, p in files.items():
-            try:
-                with open(p, encoding="utf-8") as f:
-                    out[k] = json.load(f)
-            except Exception:  # noqa: BLE001
-                out[k] = None
-        # 场库积累情况：多源通道什么时候能打开，就看这些数字
-        try:
-            from . import fieldstore
-
-            out["fields"] = {
-                p: {"days": len(fieldstore.list_dates(p)),
-                    "files": len(fieldstore.load_index(p))}
-                for p in ("gfs", "hycom", "cfs")
-            }
-        except Exception:  # noqa: BLE001
-            out["fields"] = None
-        return out
-
     def _map(self, q1: dict):
-        kind = q1.get("kind", "truth")
+        # 只画真值场。以前还支持 kind=model / diff——那是本站自研模型的预报场和
+        # 误差场，模型下架之后这两个视图也一并去掉（前端已经没有入口了，
+        # 这里再挡一道，避免有人直接拼 URL 拿到）。
+        kind = "truth"
         day = q1.get("date") or q1.get("target") or ""
         h = int(q1.get("horizon", 1) or 1)
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):

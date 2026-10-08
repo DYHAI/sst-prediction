@@ -454,7 +454,8 @@ time,lat,lon,sst</pre>
 
     <div class="card">
       <h3 class="sub" style="margin:0">各海区逐年热浪天数</h3>
-      <div class="map-box"><img id="mhw-yearly" alt="逐年热浪天数"></div>
+      <p class="sec-note">每年 7 个海区平均有多少天处于热浪状态（柱长为 0–365 天）。</p>
+      <div id="mhw-yearly" class="barchart"></div>
       <div class="tbl-wrap"><table id="mhw-yearly-table"></table></div>
     </div>
   </section>
@@ -467,7 +468,7 @@ time,lat,lon,sst</pre>
       <h3 class="sub" style="margin:0">海洋 AI 预报模型（我们参考的对象）</h3>
       <p class="sec-note">
         这些是目前最有代表性的数据驱动预报模型。它们需要大规模 GPU 训练和多年的再分析数据，
-        本站跑不动，但它们的思路决定了我们把这个擂台做成什么样子——
+        单机跑不动，但它们的思路决定了我们把它做成一个<b>开放擂台</b>的样子——
         <b>谁都可以把自己的模型接进来比</b>。上传入口在「提交预测」页。
       </p>
       <div id="ai-models"></div>

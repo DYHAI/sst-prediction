@@ -297,6 +297,27 @@ tr.is-me td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
 .map-box img { max-width: 100%; height: auto; display: block; border-radius: 8px; }
 #map-img { box-shadow: var(--shadow); }
 
+/* CSS 条形图（逐年热浪天数）。用 grid 三列对齐，别再用 inline-block 拼，
+   那样窄屏下文字会折行、柱子会挤成一团。 */
+.barchart { margin-top: 12px; }
+.barchart .bar {
+  display: grid; grid-template-columns: 46px 1fr 64px;
+  align-items: center; gap: 10px; margin: 5px 0;
+}
+.barchart .yr { font-size: 12.8px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.barchart .track {
+  display: block; height: 14px; background: var(--surface-3);
+  border-radius: 5px; overflow: hidden;
+}
+.barchart .fill {
+  display: block; height: 100%; border-radius: 5px;
+  background: linear-gradient(90deg, var(--brand-2), var(--cyan));
+}
+.barchart .val {
+  font-size: 12.6px; color: var(--ink-2); text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 pre.code {
   background: #062b4a; color: #cfe9f5; padding: 15px 17px; border-radius: 11px;
   overflow: auto; font-size: 12.4px; line-height: 1.65; font-family: var(--mono);
