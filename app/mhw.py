@@ -37,6 +37,76 @@ SERIES_PATH = os.path.join(BASE, "data", "region_series.json")
 CLIM_PATH = os.path.join(BASE, "data", "mhw_clim.json")
 EVENTS_PATH = os.path.join(BASE, "data", "mhw_events.json")
 
+CLIM_GRID_PATH = os.path.join(BASE, "data", "mhw_grid_clim.bin")
+CLIM_GRID_META = os.path.join(BASE, "data", "mhw_grid_clim.meta.json")
+
+# 逐格点阈值（由 tools/build_mhw_grid_clim.py 生成，1982–2011 基期）。
+# 上面那套是基于**海区平均**序列的判定；这个是**逐格点**的，用来画空间分布图。
+_clim_grid = None
+_clim_meta = None
+
+
+def grid_shape() -> tuple[int, int]:
+    """逐格点气候态的网格尺寸（和 data/oisst_grid 一致）。"""
+    global _clim_meta
+    if _clim_meta is None:
+        with open(CLIM_GRID_META, encoding="utf-8") as handle:
+            _clim_meta = json.load(handle)
+    return int(_clim_meta["nlat"]), int(_clim_meta["nlon"])
+
+
+def grid_thresholds(day: str):
+    """返回该日每个格点的 (p90 阈值, 气候态均值)，都是长度 nlat*nlon 的
+    float 序列，按 ilat*nlon+ilon 索引，NaN 表示陆地。
+
+    Hobday 2016 的分级要在每个格点上各自判定，所以这里必须是逐格点的
+    90 分位，而不是把海区的阈值套到整个盒子上——那样会沿区域边界切出
+    假的梯度。
+    """
+    global _clim_grid
+    nlat, nlon = grid_shape()
+    ncell = nlat * nlon
+    if _clim_grid is None:
+        import array
+        raw = array.array("f")
+        with open(CLIM_GRID_PATH, "rb") as handle:
+            raw.fromfile(handle, 2 * G.NDOY * ncell)
+        _clim_grid = raw
+    base = G.doy_index(day) * ncell
+    return (_clim_grid[base:base + ncell],
+            _clim_grid[G.NDOY * ncell + base: G.NDOY * ncell + base + ncell])
+
+
+# Hobday et al. (2018) 的四级强度配色，和 NOAA 海洋热浪追踪器一致
+CATEGORY_COLORS = (
+    # 0 不在热浪里。要和陆地色（png.LAND ≈ 226,233,239）明显区分开——
+    # 两个都接近白灰的话，读者分不清"正常海面"和"陆地"。这里用偏蓝的色调。
+    (168, 204, 222),
+    (255, 199, 102),   # I  中等
+    (255, 144, 72),    # II 强
+    (232, 66, 46),     # III 严重
+    (139, 26, 26),     # IV 极端
+)
+CATEGORY_NAMES = ("", "I 中等", "II 强", "III 严重", "IV 极端")
+
+
+def categorise(sst, p90, clim_mean) -> int:
+    """按 Hobday 2018 给单个格点定强度等级；0 表示不在热浪里。
+
+    dSST = 阈值 − 气候态均值（当地海温的自然波动幅度），
+    超过阈值的幅度是 dSST 的几倍就是第几级。
+    """
+    if sst != sst or p90 != p90 or clim_mean != clim_mean:
+        return -1                       # 陆地 / 缺测
+    if sst <= p90:
+        return 0
+    span = p90 - clim_mean
+    if span <= 0.05:                    # 阈值贴着均值，退化情况按 I 级处理
+        return 1
+    level = int((sst - p90) / span) + 1
+    return max(1, min(4, level))
+
+
 BASELINE = (1982, 2011)     # Hobday 约定的基准期
 WINDOW = 5                  # day-of-year 前后各取 5 天
 MIN_DURATION = 5            # 至少连续 5 天

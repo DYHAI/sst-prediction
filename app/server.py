@@ -247,6 +247,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(self._mhw_board(int(q1.get("days", 180) or 180)))
         if path == "/api/mhw/chart":
             return self._mhw_chart(q1)
+        if path == "/api/mhw/map":
+            return self._mhw_map(q1)
         if path == "/api/backtest":
             return self._json(self._backtest())
         if path == "/api/backtest/chart":
@@ -553,6 +555,22 @@ class Handler(BaseHTTPRequestHandler):
                 return service.mhw_leaderboard(conn, days)
 
         return service.cached(f"mhwb:{days}", 60.0, build)
+
+    def _mhw_map(self, q1: dict):
+        """逐格点的海洋热浪强度分布图。"""
+        from . import maps
+
+        day = q1.get("date") or ""
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
+            return self._err(400, "需要 date=YYYY-MM-DD")
+        try:
+            png_bytes = maps.mhw_map(day)
+        except Exception as e:  # noqa: BLE001
+            return self._err(500, f"绘图失败：{e}")
+        if not png_bytes:
+            return self._err(404, "这个日期没有海温场")
+        self._send(200, png_bytes, "image/png",
+                   {"Cache-Control": "public, max-age=600"})
 
     def _map(self, q1: dict):
         # 只画真值场。以前还支持 kind=model / diff——那是本站自研模型的预报场和

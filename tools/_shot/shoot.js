@@ -46,6 +46,12 @@ const TABS = [
   await m.screenshot({ path: path.join(OUT, "mobile-overview.png"), fullPage: true });
   console.log("  mobile    概览");
 
+  // 手机上的海洋热浪页单独看：那张逐格点热浪图是纵向的，最容易撑破布局
+  await m.click(`#tabs button[data-tab="mhw"]`);
+  await m.waitForTimeout(2600);
+  await m.screenshot({ path: path.join(OUT, "mobile-mhw.png"), fullPage: true });
+  console.log("  mobile    海洋热浪");
+
   await browser.close();
   if (errors.length) {
     console.log("\n控制台错误：");

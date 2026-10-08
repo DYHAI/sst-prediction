@@ -10,6 +10,7 @@ import os
 from datetime import date, timedelta
 
 from . import grid as G
+from . import mhw
 from . import model as M
 from . import png
 from . import regions as R
@@ -181,3 +182,58 @@ def save(kind: str, day: str, horizon: int | None = None) -> bytes | None:
              for k in range(len(t))]
         return render(d, "diff", g)
     return None
+
+
+# ------------------------------------------------------------------ 海洋热浪图
+
+MHW_LEGEND_H = 44          # 图例区高度
+
+
+def _draw_mhw_legend(c: png.Canvas, ox: int, oy: int, width: int) -> None:
+    """图例：色块在前、罗马数字在后。文字画在浅色背景上，不要压在色块上——
+    压在深红块上的深色字根本读不出来。
+
+    点阵字体只支持数字和罗马数字，够表示 Hobday 2018 的四个等级；
+    中文说明写在网页的图注里。
+    """
+    sw, gap, label_w = 22, 8, 30
+    x, y = ox, oy
+    entries = [(mhw.CATEGORY_COLORS[k], lab)
+               for k, lab in enumerate(["0", "I", "II", "III", "IV"])]
+    entries.append((png.LAND, ""))          # 陆地：只给色块，不标罗马数字
+    for color, label in entries:
+        if x + sw > ox + width:
+            break
+        c.rect(x, y, x + sw, y + 13, color)
+        c.outline(x, y, x + sw, y + 13, (150, 168, 180), 1)
+        if label:
+            c.text(x + sw + 5, y + 4, label, (60, 80, 95))
+        x += sw + gap + (label_w if label else 6)
+
+
+def mhw_map(day: str) -> bytes | None:
+    """逐格点的海洋热浪强度分布图（Hobday 2016 判定 + 2018 分级）。"""
+    g = _grid()
+    t = g.date_index(day)
+    if t < 0:
+        return None
+    try:
+        p90, clim_mean = mhw.grid_thresholds(day)
+    except FileNotFoundError:
+        return None
+    field = g.frame(t)
+    width = g.nlon * SCALE + BORDER * 2
+    height = g.nlat * SCALE + BORDER * 2 + MHW_LEGEND_H
+    c = _blank(width, height)
+    ncell = g.nlat * g.nlon
+    for i in range(g.nlat):
+        for j in range(g.nlon):
+            k = i * g.nlon + j
+            cat = mhw.categorise(field[k], p90[k], clim_mean[k])
+            color = png.LAND if cat < 0 else mhw.CATEGORY_COLORS[cat]
+            x = BORDER + j * SCALE
+            y = BORDER + (g.nlat - 1 - i) * SCALE
+            c.rect(x, y, x + SCALE, y + SCALE, color)
+    _draw_regions(c, g, BORDER, BORDER)
+    _draw_mhw_legend(c, BORDER, BORDER + g.nlat * SCALE + 10, width)
+    return c.to_png()

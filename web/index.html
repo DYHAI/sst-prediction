@@ -420,6 +420,34 @@ time,lat,lon,sst</pre>
 
     <div class="card">
       <div class="row between" style="margin-top:0">
+        <h3 class="sub" style="margin:0">热浪都在哪儿：逐格点强度分布</h3>
+        <div class="row" style="margin:0">
+          <input id="mhw-map-date" type="date">
+          <button id="mhw-map-btn" class="primary">出图</button>
+        </div>
+      </div>
+      <p class="sec-note">
+        上面那张表是<b>海区平均</b>的判定，这张图是<b>逐格点</b>各自判定——
+        每个格点用自己的 1982–2011 年 90 分位阈值，所以能看到同一个海区内部
+        哪一块更烫。分级按 Hobday et al. (2018)：超出阈值的幅度达到 1–2 倍 dSST 记
+        <b>I 中等</b>、2–3 倍记 <b>II 强</b>、3–4 倍记 <b>III 严重</b>、4 倍以上记
+        <b>IV 极端</b>（dSST = 阈值 − 气候态均值，即当地海温的自然波动幅度）。
+      </p>
+      <div id="mhw-map-msg" class="msg"></div>
+      <div class="map-box narrow"><img id="mhw-map-img" alt="逐格点海洋热浪强度分布"></div>
+      <p class="muted small">
+        图例：<b class="mhw-swatch c0"></b>0 不在热浪里　
+        <b class="mhw-swatch c1"></b>I 中等　
+        <b class="mhw-swatch c2"></b>II 强　
+        <b class="mhw-swatch c3"></b>III 严重　
+        <b class="mhw-swatch c4"></b>IV 极端　
+        <b class="mhw-swatch cl"></b>陆地
+        <br>黑框 = 7 个竞猜海区的边界。
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="row between" style="margin-top:0">
         <h3 class="sub" style="margin:0">海温 vs 90 分位阈值</h3>
         <select id="mhw-region"></select>
       </div>

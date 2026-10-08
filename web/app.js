@@ -577,6 +577,7 @@ async function loadMhw() {
   renderMhwEvents();
   renderMhwYearly(d.yearly);
   loadMhwChart();
+  initMhwMap(d.latest);
 }
 
 function renderMhwStatus(rows) {
@@ -683,6 +684,35 @@ function renderMhwYearly(yearly) {
       <span class="val">${tot.toFixed(0)} 天</span></div>`;
   }).join("");
   $("#mhw-yearly").innerHTML = bars;
+}
+
+// ------------------------------------------------------------------ 热浪空间图
+// 逐格点的强度分布。日期默认跟"当前状态"表的最新观测日对齐，
+// 这样表格和地图讲的是同一天，不会让人以为是两个时间点。
+function initMhwMap(defaultDay) {
+  const input = $("#mhw-map-date");
+  if (input && !input.value) input.value = defaultDay || (state.rounds && state.rounds.latest_truth) || todayISO();
+  loadMhwMap();
+}
+$("#mhw-map-btn").onclick = loadMhwMap;
+$("#mhw-map-date").onchange = loadMhwMap;
+
+async function loadMhwMap() {
+  const day = $("#mhw-map-date").value;
+  if (!day) return;
+  setMsg("#mhw-map-msg", "正在出图…");
+  try {
+    const r = await fetch(`/api/mhw/map?date=${day}`);
+    if (!r.ok) {
+      const e = await r.json().catch(() => ({}));
+      throw new Error(e.error || "这一天没有海温场");
+    }
+    const img = $("#mhw-map-img");
+    if (img.dataset.url) URL.revokeObjectURL(img.dataset.url);
+    const obj = URL.createObjectURL(await r.blob());
+    img.src = obj; img.dataset.url = obj;
+    setMsg("#mhw-map-msg", "");
+  } catch (e) { setMsg("#mhw-map-msg", e.message, false); }
 }
 
 function loadMhwChart() {

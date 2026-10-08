@@ -296,6 +296,9 @@ tr.is-me td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
 }
 .map-box img { max-width: 100%; height: auto; display: block; border-radius: 8px; }
 #map-img { box-shadow: var(--shadow); }
+/* 逐格点热浪图是纵向的（南海盒子 13.75°经 × 20.25°纬），在通栏容器里
+   两侧会空出一大片。收窄成一张"海报"的样子。 */
+.map-box.narrow { max-width: 520px; margin-left: auto; margin-right: auto; }
 
 /* CSS 条形图（逐年热浪天数）。用 grid 三列对齐，别再用 inline-block 拼，
    那样窄屏下文字会折行、柱子会挤成一团。 */
@@ -317,6 +320,20 @@ tr.is-me td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
   font-size: 12.6px; color: var(--ink-2); text-align: right;
   font-variant-numeric: tabular-nums;
 }
+
+/* 热浪图例的小色块，和 app/mhw.py 的 CATEGORY_COLORS 一一对应。
+   改颜色时要两边一起改。 */
+.mhw-swatch {
+  display: inline-block; width: 13px; height: 13px; border-radius: 3px;
+  border: 1px solid rgba(120, 140, 155, .55); vertical-align: -2px;
+  margin-right: 3px;
+}
+.mhw-swatch.c0 { background: #a8ccde; }
+.mhw-swatch.c1 { background: #ffc766; }
+.mhw-swatch.c2 { background: #ff9048; }
+.mhw-swatch.c3 { background: #e8422e; }
+.mhw-swatch.c4 { background: #8b1a1a; }
+.mhw-swatch.cl { background: #e2e9ef; }
 
 pre.code {
   background: #062b4a; color: #cfe9f5; padding: 15px 17px; border-radius: 11px;
