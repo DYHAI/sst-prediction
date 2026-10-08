@@ -8,3 +8,10 @@ __pycache__/
 
 # 论文 PDF 抽出来的工作文本，按需用 refs/ 里的说明重新生成
 refs/2609.23969v1.txt
+
+# 截图工具：只有 shoot.js 值得留档，node_modules 和产物都不进仓库
+tools/_shot/node_modules/
+tools/_shot/package-lock.json
+
+# 改版前的页面备份，只作本地回滚用
+web/_backup_*/

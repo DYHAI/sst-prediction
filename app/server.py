@@ -12,6 +12,7 @@ import json
 import mimetypes
 import os
 import re
+import socket
 import socketserver
 import sys
 import time
@@ -25,6 +26,39 @@ from . import ingest_file, maps
 from . import regions as R
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# 站长自己训的那批模型在回测文件里的代号。它们不再对外展示——
+# 这个擂台是给别人来比的，不是拿来秀自己模型的。
+# 留下来的：gfs（官方产品）以及 clim / persistence / damped（标准对照基线）。
+_OWN_BACKTEST_MODELS = {"lim", "xgb", "unet"}
+
+# 回测图里每个条目的显示名和颜色。前端图例也从这里取（通过 /api/backtest
+# 一并返回），免得两边各写一份、改了一边忘了另一边——上一版图例就是这么
+# 变成"表里已经没有本站模型、图例却还列着"的。
+_BACKTEST_STYLE: dict[str, tuple[str, str]] = {
+    "clim": ("气候态", "#cdd2dc"),
+    "persistence": ("持续性", "#96a5b4"),
+    "damped": ("阻尼持续性", "#46be78"),
+    "gfs": ("NCEP GFS", "#eb783c"),
+}
+
+
+def _hex_to_rgb(value: str) -> tuple[int, int, int]:
+    v = value.lstrip("#")
+    return tuple(int(v[i:i + 2], 16) for i in (0, 2, 4))  # type: ignore[return-value]
+
+
+def _strip_own_models(data: dict) -> dict:
+    """从回测结果里剔掉本站自研模型，只留官方产品和标准基线。"""
+    if not isinstance(data, dict):
+        return data
+    for key in ("by_lead", "by_year"):
+        block = data.get(key)
+        if isinstance(block, dict):
+            for name in list(block):
+                if name in _OWN_BACKTEST_MODELS:
+                    block.pop(name, None)
+    return data
 WEB = os.path.join(BASE, "web")
 PORTAL = os.path.join(WEB, "portal")
 
@@ -272,7 +306,28 @@ class Handler(BaseHTTPRequestHandler):
                 "reference": "同一海区、同一时效下表现最好的官方预报产品（HYCOM / GFS / CFSv2）",
             },
             "truth_source": "NOAA OISST v2.1（daily 0.25°，近实时版滞后约 1–2 天）",
+            # 前端靠这个决定要不要显示「问本地大模型」页签。LLM 服务是独立的
+            # launchd 任务（com.playai.sst.llm），随时可能没在跑——与其留个点了
+            # 只会报错的入口，不如让它自己藏起来。
+            "chat_ok": self._chat_alive(),
         }
+
+    @staticmethod
+    def _chat_alive() -> bool:
+        """快速探一下本地模型端口（不发送任何请求，只做 TCP 连接）。"""
+        cc = CFG.get("chat") or {}
+        if not cc.get("enabled"):
+            return False
+        upstream = cc.get("upstream") or ""
+        m = re.match(r"https?://([^/:]+)(?::(\d+))?", upstream)
+        if not m:
+            return False
+        host, port = m.group(1), int(m.group(2) or 80)
+        try:
+            with socket.create_connection((host, port), timeout=0.4):
+                return True
+        except OSError:
+            return False
 
     # ------------------------------------------------------------ 海温图
     def _mhw(self, days: str) -> dict:
@@ -439,9 +494,18 @@ class Handler(BaseHTTPRequestHandler):
         p = os.path.join(BASE, "data", "backtest_long.json")
         try:
             with open(p, encoding="utf-8") as f:
-                return json.load(f)
+                data = _strip_own_models(json.load(f))
         except Exception:  # noqa: BLE001
             return {"error": "还没有回测结果，先跑 tools/backtest_long.py"}
+        # 图例跟着数据走：给前端一份 (代号 → 显示名/颜色) 的映射，
+        # 只列这次真正有数据的条目。
+        present = list((data.get("by_lead") or {}).keys())
+        data["legend"] = [
+            {"code": k, "label": _BACKTEST_STYLE.get(k, (k, "#888888"))[0],
+             "color": _BACKTEST_STYLE.get(k, (k, "#888888"))[1]}
+            for k in present
+        ]
+        return data
 
     def _backtest_chart(self, q1: dict):
         """误差随预报时效的变化曲线（每个模型一条）。"""
@@ -451,15 +515,9 @@ class Handler(BaseHTTPRequestHandler):
         p = os.path.join(BASE, "data", "backtest_long.json")
         try:
             with open(p, encoding="utf-8") as f:
-                data = json.load(f)
+                data = _strip_own_models(json.load(f))
         except Exception:  # noqa: BLE001
             return self._err(404, "还没有回测结果")
-        colors = {
-            "clim": (205, 210, 220), "persistence": (150, 165, 180),
-            "damped": (70, 190, 120), "gfs": (235, 120, 60),
-            "lim": (240, 180, 50), "xgb": (175, 110, 200),
-            "unet": (20, 100, 200),
-        }
         want = q1.get("models")
         keep = set(x for x in want.split(",") if x) if want else None
         series = []
@@ -469,9 +527,10 @@ class Handler(BaseHTTPRequestHandler):
             vals = [r.get(metric) for r in sorted(rows, key=lambda z: z["lead"])]
             if not any(v is not None for v in vals):
                 continue
+            hex_color = _BACKTEST_STYLE.get(model, (model, "#888888"))[1]
             series.append({"values": [float("nan") if v is None else v for v in vals],
-                           "color": colors.get(model, (120, 120, 120)),
-                           "width": 3 if model in ("unet", "damped") else 2})
+                           "color": _hex_to_rgb(hex_color),
+                           "width": 3 if model == "damped" else 2})
         out = charts.line_chart(660, 260, series)
         self._send(200, out, "image/png", {"Cache-Control": "public, max-age=300"})
 

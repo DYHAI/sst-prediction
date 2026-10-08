@@ -32,29 +32,73 @@ const regionName = (code) => (state.meta.regions.find((x) => x.code === code) ||
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
 // ------------------------------------------------------------------ 标签页
-$$("#tabs button").forEach((b) => b.addEventListener("click", () => {
-  $$("#tabs button").forEach((x) => x.classList.toggle("on", x === b));
-  // 直接按标签按钮生成区块列表：以前这里写死了四个名字，
-  // 后来加页签忘了同步，点新页签会把所有区块都藏起来（白屏）。
+// 一级页签只有 5 个：概览 / 排行榜 / 模型分析 / 海洋热浪 / 方法（+ 提交预测）。
+// 上一版是 8 个，其中「长期回测」「极端值比拼」「海温图」讲的其实是同一批预报的
+// 不同切面，现在收进「模型分析」用分段控件切换；「方法与文献」降级成 nav 里的次要项。
+//
+// 区块列表仍然按按钮动态生成。以前这里写死过名字，后来加页签忘了同步，
+// 点新页签会把所有区块都藏起来（白屏）——别再写死。
+
+const TAB_LOADERS = {
+  overview: renderOverview,
+  board: loadBoard,
+  analysis: loadAnalysis,
+  mhw: loadMhw,
+};
+
+function showTab(name) {
+  $$("#tabs button").forEach((x) => x.classList.toggle("on", x.dataset.tab === name));
   $$("#tabs button").forEach((x) => {
     const sec = $("#tab-" + x.dataset.tab);
-    if (sec) sec.classList.toggle("hidden", x !== b);
+    if (sec) sec.classList.toggle("hidden", x.dataset.tab !== name);
   });
-  if (b.dataset.tab === "board") loadBoard();
-  if (b.dataset.tab === "maps") { initMaps(); }
-  if (b.dataset.tab === "mhw") loadMhw();
-  if (b.dataset.tab === "extremes") { loadMhwBoard(); loadExtremes(); }
-  if (b.dataset.tab === "longtest") loadLongtest();
-  if (b.dataset.tab === "chat") initChat();
+  // 头图只在概览页出现，别的页签直接进内容，别让用户每次都要滑过半屏横幅
+  const hero = $("#hero");
+  if (hero) hero.classList.toggle("hidden", name !== "overview");
+  const loader = TAB_LOADERS[name];
+  if (loader) loader();
+}
+
+$$("#tabs button").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
+
+// 头图和正文里的「跳转」按钮
+function bindJumps() {
+  $$("[data-jump]").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.jump)));
+}
+
+// ---- 排行榜内部的二级切换：参赛者榜单 / 基准线 ----
+$$("[data-board-pane]").forEach((b) => b.addEventListener("click", () => {
+  $$("[data-board-pane]").forEach((x) => x.classList.toggle("on", x === b));
+  $("#board-pane-main").classList.toggle("hidden", b.dataset.boardPane !== "main");
+  $("#board-pane-ref").classList.toggle("hidden", b.dataset.boardPane !== "ref");
 }));
 
-// 支持从总入口页用 #chat 直接跳过来
-window.addEventListener("hashchange", () => {
-  if (location.hash === "#chat") {
-    const btn = document.querySelector('#tabs button[data-tab="chat"]');
-    if (btn) btn.click();
-  }
-});
+// ---- 模型分析内部的二级切换 ----
+const AN_PANES = ["longtest", "extremes", "maps"];
+function showAnalysis(name) {
+  $$("#an-seg button").forEach((x) => x.classList.toggle("on", x.dataset.an === name));
+  AN_PANES.forEach((k) => {
+    const el = $("#an-" + k);
+    if (el) el.classList.toggle("hidden", k !== name);
+  });
+  if (name === "longtest") loadLongtest();
+  else if (name === "extremes") { loadMhwBoard(); loadExtremes(); }
+  else if (name === "maps") initMaps();
+}
+$$("#an-seg button").forEach((b) => b.addEventListener("click", () => showAnalysis(b.dataset.an)));
+function loadAnalysis() {
+  const cur = $("#an-seg button.on");
+  showAnalysis(cur && cur.dataset.an ? cur.dataset.an : "longtest");
+}
+
+// 支持从总入口页用 #chat / #board 直接跳过来
+function jumpFromHash() {
+  const h = (location.hash || "").replace("#", "");
+  if (!h) return;
+  const btn = document.querySelector(`#tabs button[data-tab="${h}"]`);
+  if (btn && !btn.classList.contains("hidden")) btn.click();
+}
+window.addEventListener("hashchange", jumpFromHash);
 
 function setMsg(el, text, ok = true) {
   const n = typeof el === "string" ? $(el) : el;
@@ -246,30 +290,84 @@ function renderRegions() {
 }
 
 // ------------------------------------------------------------------ 排行榜
+// ------------------------------------------------------------------ 概览
+function rankBadge(n) {
+  const cls = n === 1 ? "r1" : n === 2 ? "r2" : n === 3 ? "r3" : "";
+  return `<span class="rank ${cls}">${n}</span>`;
+}
+
+const ovCard = (k, v, d, hi, long) =>
+  `<div class="stat${hi ? " hi" : ""}"><div class="k">${k}</div>
+   <div class="v${long ? " long" : ""}">${v}</div>
+   <div class="d">${d || ""}</div></div>`;
+
+/** 概览页：一屏说清这是什么、怎么玩、现在谁在赢。 */
+async function renderOverview() {
+  const box = $("#ov-stats");
+  try {
+    const d = await api("/api/leaderboard?days=60");
+    const rows = d.rows || [];
+    const top = rows[0];
+    const latest = (state.rounds && state.rounds.latest_truth) || "—";
+    const nRegions = (state.meta && state.meta.regions ? state.meta.regions.length : 7);
+    if (box) {
+      box.innerHTML =
+        ovCard("竞猜海区", `${nRegions}`, "北部湾 → 南海南部") +
+        ovCard("预报时效", '1/3/5<small>天</small>', "目标日前 1/3/5 天截止") +
+        ovCard("在榜条目", `${rows.length}`, "官方产品 + 内置基线 + 参赛者") +
+        (top ? ovCard("当前榜首", esc(top.name), `综合分 ${fmt(top.score, 1)}`, true,
+                      String(top.name).length > 10)
+             : ovCard("当前榜首", "—", "还没有已结算记录", true)) +
+        ovCard("真值更新到", `${latest}`, "NOAA OISST v2.1");
+    }
+    // 榜单快照：只取前 6 名，完整榜单在「排行榜」页
+    let h = `<thead><tr><th>名次</th><th class="name">名字</th><th>综合分</th><th>MAE</th>
+      <th>命中率</th><th>样本</th></tr></thead><tbody>`;
+    if (!rows.length) h += `<tr><td colspan="6" class="muted">还没有已结算的记录。</td></tr>`;
+    rows.slice(0, 6).forEach((r) => {
+      const cls = r.kind === "product" ? "is-product"
+        : r.kind === "baseline" ? "is-baseline"
+        : (state.myId && r.entity === "player:" + state.myId ? "is-me" : "");
+      const pl = r.kind === "product"
+        ? `<span class="pill prod">官方产品</span>`
+        : r.kind === "baseline" ? `<span class="pill base">内置对照</span>`
+        : `<span class="pill">${kindLabel(r.kind)}</span>`;
+      h += `<tr class="${cls}"><td>${rankBadge(r.rank)}</td><td class="name">${esc(r.name)}${pl}</td>
+        <td><b>${fmt(r.score, 1)}</b></td><td>${fmt(r.mae, 3)}</td>
+        <td>${pct(r.hit)}</td><td>${r.n}</td></tr>`;
+    });
+    $("#ov-board").innerHTML = h + "</tbody>";
+  } catch (e) {
+    if (box) box.innerHTML = ovCard("加载失败", "—", esc(e.message));
+    const b = $("#ov-board");
+    if (b) b.innerHTML = `<tbody><tr><td class="muted">${esc(e.message)}</td></tr></tbody>`;
+  }
+}
+
 async function loadBoard() {
   const days = $("#window").value;
   try {
     const d = await api("/api/leaderboard?days=" + days);
-    let h = `<thead><tr><th>名次</th><th>名字</th><th>综合分</th><th>MAE</th>
+    let h = `<thead><tr><th>名次</th><th class="name">名字</th><th>综合分</th><th>MAE</th>
       <th>RMSE</th><th>偏差</th><th>命中率</th>
       <th title="0 = 与该海区该时效最强的官方产品打平">相对基准</th><th>样本</th></tr></thead><tbody>`;
     if (!d.rows.length) h += `<tr><td colspan="9" class="muted">还没有已结算的记录。</td></tr>`;
     d.rows.forEach((r) => {
-      const cls = r.kind === "product" ? "product" : (r.kind === "baseline" ? "baseline"
-        : (state.myId && r.entity === "player:" + state.myId ? "me" : ""));
-      const pl = r.kind === "product" ? `<span class="pill prod">${r.name.includes("本站") ? "本站模型" : "官方产品"}</span>`
+      const cls = r.kind === "product" ? "is-product" : (r.kind === "baseline" ? "is-baseline"
+        : (state.myId && r.entity === "player:" + state.myId ? "is-me" : ""));
+      const pl = r.kind === "product" ? `<span class="pill prod">官方产品</span>`
         : r.kind === "baseline" ? `<span class="pill base">内置对照</span>`
         : `<span class="pill">${kindLabel(r.kind)}</span>`;
-      h += `<tr class="${cls}"><td>${r.rank}</td><td>${esc(r.name)}${pl}</td>
+      h += `<tr class="${cls}"><td>${rankBadge(r.rank)}</td><td class="name">${esc(r.name)}${pl}</td>
         <td><b>${fmt(r.score, 1)}</b></td><td>${fmt(r.mae, 3)}</td><td>${fmt(r.rmse, 3)}</td>
         <td>${signed(r.bias, 3)}</td><td>${pct(r.hit)}</td>
         <td>${r.advantage === null ? "—" : signed(r.advantage * 100, 1) + "%"}</td>
         <td>${r.n}</td></tr>`;
     });
     $("#board-table").innerHTML = h + "</tbody>";
-    let rt = `<thead><tr><th>海区</th><th>时效</th><th>基准 MAE（°C）</th><th>共同样本天数</th></tr></thead><tbody>`;
+    let rt = `<thead><tr><th class="name">海区</th><th>时效</th><th>基准 MAE（°C）</th><th>共同样本天数</th></tr></thead><tbody>`;
     d.groups.forEach((g) => {
-      rt += `<tr><td>${esc(g.region_cn)}</td><td>${g.horizon} 天</td>
+      rt += `<tr><td class="name">${esc(g.region_cn)}</td><td>${g.horizon} 天</td>
         <td>${fmt(g.ref_mae, 3)}</td><td>${g.common_dates ?? "—"}</td></tr>`;
     });
     $("#ref-table").innerHTML = rt + "</tbody>";
@@ -289,14 +387,11 @@ function initMaps() {
   loadProdErrors();
 }
 $("#map-btn").onclick = loadMap;
-$("#map-kind").onchange = loadMap;
 
 async function loadMap() {
-  const kind = $("#map-kind").value;
   const date = $("#map-date").value;
-  const h = $("#map-horizon").value;
   if (!date) return;
-  const url = `/api/map?kind=${kind}&date=${date}&horizon=${h}`;
+  const url = `/api/map?kind=truth&date=${date}`;
   setMsg("#map-msg", "正在出图…");
   try {
     const r = await fetch(url);
@@ -310,9 +405,7 @@ async function loadMap() {
     const obj = URL.createObjectURL(blob);
     img.src = obj; img.dataset.url = obj;
     const lo = r.headers.get("X-Scale-Min"), hi = r.headers.get("X-Scale-Max");
-    const name = { truth: "OISST 真值", model: "本站模型预报", diff: "模型 − 真值 误差" }[kind];
-    $("#map-caption").textContent =
-      `${name}｜${date}${kind === "truth" ? "" : `（时效 ${h} 天）`}｜色标 ${lo} ~ ${hi} °C`;
+    $("#map-caption").textContent = `NOAA OISST v2.1｜${date}｜色标 ${lo} ~ ${hi} °C`;
     setMsg("#map-msg", "");
   } catch (e) { setMsg("#map-msg", e.message, false); }
 }
@@ -321,7 +414,7 @@ async function loadProdErrors() {
   try {
     const days = 60;
     const d = await api("/api/leaderboard?days=" + days);
-    let h = `<thead><tr><th>条目</th><th>类型</th><th>综合分</th><th>MAE</th><th>RMSE</th><th>偏差</th><th>命中率</th><th>样本</th></tr></thead><tbody>`;
+    let h = `<thead><tr><th class="name">条目</th><th>类型</th><th>综合分</th><th>MAE</th><th>RMSE</th><th>偏差</th><th>命中率</th><th>样本</th></tr></thead><tbody>`;
     d.rows.forEach((r) => {
       h += `<tr class="${r.kind === "product" ? "product" : r.kind}"><td>${esc(r.name)}</td>
         <td>${kindLabel(r.kind)}</td><td>${fmt(r.score, 1)}</td><td>${fmt(r.mae, 3)}</td>
@@ -487,6 +580,19 @@ async function loadMhw() {
 }
 
 function renderMhwStatus(rows) {
+  // 页面顶部那排指标卡：把"现在几个海区在热浪里"这个最该一眼看到的结论放上去
+  const hero = $("#mhw-hero-main");
+  if (hero) {
+    const above = rows.filter((r) => r.above);
+    const worst = rows.slice().sort((a, b) => (b.margin || 0) - (a.margin || 0))[0];
+    hero.className = "stat" + (above.length ? " hi" : "");
+    hero.innerHTML =
+      `<div class="k">当前处于海洋热浪的海区</div>` +
+      `<div class="v">${above.length}<small>/ ${rows.length} 个</small></div>` +
+      `<div class="d">${above.length
+        ? `超出 90 分位阈值最多的是 <b>${esc(worst.region_cn)}</b>（+${fmt(worst.margin)} °C）`
+        : "全部海区都在阈值以下"}</div>`;
+  }
   let h = `<thead><tr><th>海区</th><th>当前海温</th><th>90 分位阈值</th>
     <th>气候态均值</th><th>距平</th><th>距阈值</th><th>状态</th></tr></thead><tbody>`;
   rows.forEach((r) => {
@@ -550,7 +656,7 @@ function renderMhwEvents() {
 function renderMhwYearly(yearly) {
   if (!yearly || !yearly.length) return;
   const years = yearly.map((y) => String(y.year));
-  let h = `<thead><tr><th>年份</th>`;
+  let h = `<thead><tr><th class="name">年份</th>`;
   state.meta.regions.forEach((r) => { h += `<th>${esc(r.name_cn)}</th>`; });
   h += `</tr></thead><tbody>`;
   yearly.slice().reverse().forEach((y) => {
@@ -581,7 +687,7 @@ function loadMhwChart() {
 
 // ------------------------------------------------------------------ 极端值
 const MODEL_CN = { clim: "气候态", persistence: "持续性", damped: "阻尼持续性",
-  gfs: "NCEP GFS", lim: "本站 LIM", xgb: "本站 XGBoost", unet: "本站 U-Net" };
+  gfs: "NCEP GFS" };
 
 async function loadLongtest() {
   try {
@@ -598,6 +704,15 @@ async function loadLongtest() {
       `这两个产品只能在榜单里靠每日抓数慢慢攒（网站上标了还差多少天）。`;
     const models = Object.keys(d.by_lead);
     const leads = d.design.leads;
+
+    // 图例跟着数据走。以前这里是写死在 HTML 里的 7 行，删了模型之后
+    // 表格里没有、图例里还列着——两边各写一份迟早对不上。
+    const legend = $("#lt-legend");
+    if (legend) {
+      legend.innerHTML = (d.legend || []).map((it) =>
+        `<span style="color:${it.color};font-weight:600">━</span> ${esc(it.label)}`
+      ).join("　");
+    }
 
     let h = `<thead><tr><th>时效</th>` +
       models.map((m) => `<th>${esc(MODEL_CN[m] || m)}</th>`).join("") + `</tr></thead><tbody>`;
@@ -617,7 +732,7 @@ async function loadLongtest() {
     }).join("") + `</tr>`;
     $("#lt-table").innerHTML = h + "</tbody>";
 
-    let y = `<thead><tr><th>年份</th>` +
+    let y = `<thead><tr><th class="name">年份</th>` +
       models.map((m) => `<th>${esc(MODEL_CN[m] || m)}</th>`).join("") + `</tr></thead><tbody>`;
     const years = [...new Set(models.flatMap((m) => (d.by_year[m] || []).map((r) => r.year)))].sort();
     years.forEach((yr) => {
@@ -630,7 +745,7 @@ async function loadLongtest() {
     });
     $("#lt-year").innerHTML = y + "</tbody>";
 
-    let t = `<thead><tr><th>模型</th><th>时效</th><th>热浪日 MAE</th><th>正常日 MAE</th>
+    let t = `<thead><tr><th class="name">模型</th><th>时效</th><th>热浪日 MAE</th><th>正常日 MAE</th>
       <th>劣化</th><th>POD</th><th>FAR</th><th>ETS</th><th>热浪样本</th></tr></thead><tbody>`;
     models.forEach((m) => {
       (d.by_lead[m] || []).forEach((r) => {
@@ -655,7 +770,9 @@ async function loadLongtest() {
 function loadLtChart() {
   const m = $("#lt-metric").value;
   const zoom = $("#lt-zoom").checked;
-  const models = zoom ? "persistence,damped,lim,xgb,unet" : "";
+  // 放大对比时只留两条：持续性（最朴素的基线）和阻尼持续性（最强的基线）。
+  // 之前这里还列着 lim/xgb/unet——那是本站自己的模型，已经下架了。
+  const models = zoom ? "persistence,damped" : "";
   $("#lt-chart").src =
     `/api/backtest/chart?metric=${m}${models ? "&models=" + models : ""}&t=${Date.now()}`;
 }
@@ -747,7 +864,10 @@ const AI_MODELS = [
 function renderAbout() {
   const sc = state.meta.scoring;
   const w = sc.weights;
+  // 只列官方产品。meta.products 里还带着站长自己训的那批模型
+  // （reference === false），它们不再对外展示。
   const prods = Object.entries(state.meta.products)
+    .filter(([, v]) => v.reference !== false)
     .map(([k, v]) => `<li><b>${esc(v.name)}</b>（${esc(v.org)}）— ${esc(v.note)}</li>`).join("");
   const ai = AI_MODELS.map(([n, c, d]) =>
     `<div class="ai-item"><b>${n}</b><br><span class="muted small">${c}</span>
@@ -784,47 +904,10 @@ function renderAbout() {
     样本数少于 ${sc.min_n} 次不给综合分。榜单默认只比较<b>所有官方产品都有数据的日期</b>
     （"共同样本"），这和原论文 "on the days both exist" 的做法一致。</p>
 
-    <strong>四、本站自己训了哪几个模型</strong>
-    <p class="muted">
-      <b>① 线性逆模型（LIM / VAR）</b>：把南海按 2° 粗化成 55 个粗格点，减去逐日气候态得到距平，
-      用 <b>8.75 年</b>（3198 天）OISST 拟合距平的线性演化算子 <code>X(t+τ) = A·X(t) + b</code>，
-      预报时用截止时刻能拿到的最新观测做初值外推。和 Penland & Sardeshmukh 那一族方法同源。
-    </p>
-    <p class="muted">
-      <b>② 梯度提升树（XGBoost / CatBoost / LightGBM）</b>：特征包括 7 个海区在
-      as_of、−1、−2、−3、−5、−7 天的距平（42 维）、目标日的季节谐波与气候态、
-      时效与海区 one-hot，共 55 维；输出目标日的距平。
-      <b>关键设计：让树只学「相对持续性基线的修正量」</b>，而不是从零学距平——
-      直接学距平会严重过拟合（训练 MAE 0.137、验证 0.301，而持续性只有 0.18），
-      改成学修正量之后验证误差立刻回到 0.19 左右。
-    </p>
-    <p class="muted">
-      <b>③ 多源后处理（融合）</b>：把 HYCOM / GFS / CFSv2 的预报值 + 持续性当输入，
-      学一组融合权重——就是论文里那个「全公开产品最优加权组合」。
-      评估用<b>留一天交叉验证</b>，出预报时用<b>走前向</b>权重（只拿目标日之前的数据拟合）。
-      这一步很关键：如果拿全量数据拟合再回头报历史，会算出 MAE 0.151 这种虚高成绩
-      （假的），走前向之后落到 0.21，才和它真实的水平相符。
-    </p>
-    <p class="muted">
-      <b>④ U-Net 空间订正（深度学习）</b>：输入是 82×56 的多通道场
-      （持续性场 + GFS 预报场 + 有无标志 + 季节 + 时效），输出订正后的海温场。
-      用卷积是因为模式误差有空间结构（近岸、陆架坡折、涡旋区误差大），逐格点回归吃不到这个。
-      <b>训练数据是真的</b>：用 AWS 上 NOAA 的公开 GFS 存档 + GRIB 字节索引，
-      把 730 天的历史预报场只下每个时次 600 KB 的 TMP:surface 那一条，回补成 40 MB 数据集。
-      网络做成<b>残差式</b>（输出 = 持续性场 + 修正量）：直接从零预测距平会过度阻尼，
-      实测系统性偏冷 0.31°C、比持续性还差，改成残差之后才回到正常水平。
-    </p>
-    <p class="muted">所有模型都带 <b>30 天隔离期</b>：训练数据截止到今天往前 30 天，
-    所以榜单上每一条成绩都是真正的样本外预报，不存在"背答案"。</p>
-
-    <strong>五、一个必须说清楚的结论</strong>
-    <p class="muted">把训练数据从 3 年扩到 8.75 年之后，LIM 才从"明显输给持续性"追到
-    <b>与持续性持平、在 3/5 天上略微胜出</b>（见下面样本外验证表）。
-    梯度提升树这边，加了很多特征、换了几种实现，最终也只是和持续性打平。
-    这不是我们做得不好，而是<b>热带海温 1–5 天预报本身的天花板</b>——
-    暖池区海温变化慢、方差小，持续性极难打败。文献里也是同一个结论。</p>
-    <p class="muted">真正能拉开差距的方向是<b>后处理</b>（学官方产品的订正量）和
-    <b>更长的时效</b>。这也是我们下一步要做的事。</p>
+    <strong>四、谁可以来比</strong>
+    <p class="muted">任何人都可以提交：直接填 7×3 个数字，或者上传 CSV / NetCDF / Parquet。
+    官方产品和你在同一条信息截止线上、用同一份 OISST 真值、按同一套规则算分。
+    <b>本站不派自己的模型参赛</b>——榜单上只有官方产品、内置基线，和来参赛的你。</p>
 
     <strong>五、这个擂台想干什么</strong>
     <p class="muted">思路来自 Crosier (2026) 对 Kalshi 温度预测市场的研究：市场隐含预报
@@ -835,119 +918,6 @@ function renderAbout() {
   `;
 }
 
-async function renderValidation() {
-  try {
-    const r = await fetch("/data/model_validation.json").catch(() => null);
-    if (!r || !r.ok) throw new Error("no file");
-    const v = await r.json();
-    let h = `<p class="muted small">训练期 ${v.train_window[0]} ~ ${v.train_window[1]}；
-      样本外测试期 ${v.test_window[0]} ~ ${v.test_window[1]}。
-      系数完全没见过测试期数据，初值只用当天真实可得的观测。</p>
-      <div class="scroll"><table><thead><tr><th>时效</th><th>纯持续性</th>
-      <th>阻尼持续性</th><th>本站 LIM</th><th>LIM/阻尼各半</th><th>样本</th></tr></thead><tbody>`;
-    Object.entries(v.by_horizon).forEach(([hz, r2]) => {
-      h += `<tr><td>${hz} 天</td><td>${fmt(r2.persistence, 3)}</td>
-        <td>${fmt(r2.damped, 3)}</td><td>${fmt(r2.lim, 3)}</td>
-        <td>${fmt(r2.blend, 3)}</td><td>${r2.n}</td></tr>`;
-    });
-    h += `</tbody></table></div>
-      <p class="muted small" style="margin-top:10px">${esc(v.note)}<br>
-      <b>结论：在 1–5 天的南海海温上，本站 LIM 打不过纯持续性。</b>
-      这与文献一致——热带海温的持续性极强，线性逆模型的价值主要在月以上尺度。
-      我们把它照实挂在榜上，而不是挑一个好看的窗口。</p>`;
-    $("#validation").innerHTML = h;
-  } catch (e) {
-    $("#validation").innerHTML = `<p class="muted small">验证结果文件还没生成，运行
-      <code>python3 -m tools.validate_model</code> 即可。</p>`;
-  }
-}
-
-async function renderLocalModels() {
-  const box = $("#local-models");
-  if (!box) return;
-  try {
-    const d = await api("/api/leaderboard?days=180");
-    const mine = d.rows.filter((r) => /^本站/.test(r.name));
-    const others = d.rows.filter((r) => !/^本站/.test(r.name));
-    const row = (r) => `<tr class="${r.kind}"><td>${esc(r.name)}</td><td>${kindLabel(r.kind)}</td>
-      <td><b>${fmt(r.score, 1)}</b></td><td>${fmt(r.mae, 3)}</td>
-      <td>${signed(r.bias, 3)}</td><td>${pct(r.hit)}</td><td>${r.n}</td></tr>`;
-    let h = `<p class="muted small">榜单上"本站"开头的都是我们自己训的，和官方产品用同一套规则取数结算。
-      下面同时列出官方产品与内置基线，方便一眼对比。</p>
-      <div class="scroll"><table><thead><tr><th>条目</th><th>类型</th><th>综合分</th>
-      <th>MAE</th><th>偏差</th><th>命中率</th><th>样本</th></tr></thead><tbody>
-      ${mine.map(row).join("")}${others.map(row).join("")}</tbody></table></div>`;
-    const meta = state.meta.products;
-    const notes = Object.entries(meta).filter(([k]) => /xgboost|catboost|lightgbm|^ours$/.test(k))
-      .map(([k, v]) => `<div class="ai-item"><b>${esc(v.name)}</b><br>
-        <span class="muted small">${esc(v.org)}</span>
-        <p class="muted small" style="margin:4px 0 0">${esc(v.note)}</p></div>`).join("");
-    box.innerHTML = h + notes;
-  } catch (e) {
-    box.innerHTML = `<p class="muted small">读取失败：${esc(e.message)}</p>`;
-  }
-}
-
-async function renderModelReport() {
-  const box = $("#model-report");
-  if (!box) return;
-  try {
-    const r = await api("/api/model_report");
-    let h = "";
-    if (r.postproc) {
-      const p = r.postproc, m = p.lodo_mae || {};
-      h += `<div class="ai-item"><b>多源后处理 · 留一天交叉验证</b>
-        <p class="muted small" style="margin:4px 0 0">
-        样本 ${p.samples} 条／${p.days} 天（${p.date_range[0]} ~ ${p.date_range[1]}），选用 <code>${p.chosen}</code>。
-        留一天交叉验证 MAE：订正融合 <b>${fmt(m.ridge, 3)}</b>、
-        HYCOM ${fmt(m.hycom, 3)}、CFSv2 ${fmt(m.cfs, 3)}、GFS ${fmt(m.gfs, 3)}、
-        持续性 ${fmt(m.persistence, 3)}。<br>
-        目前样本只有 ${p.days} 天，权重还学不稳（论文里也指出样本少时估计权重会输给简单平均）。
-        脚本每天自动重跑，随着官方产品历史累积，这个数会变。</p></div>`;
-    }
-    if (r.unet) {
-      const u = r.unet, o = u.out_of_sample || {};
-      h += `<div class="ai-item"><b>U-Net 订正 · 样本外</b>
-        <p class="muted small" style="margin:4px 0 0">
-        训练 ${u.train} 样本／验证 ${u.val}，测试窗口 ${u.test_window ? u.test_window.join(" ~ ") : "—"}
-        （${o.n || 0} 条）。MAE：U-Net <b>${fmt(o.unet, 4)}</b> ·
-        持续性 ${fmt(o.persistence, 4)} · GFS 原始 ${fmt(o.gfs, 4)}。<br>
-        输入是 82×56 的 <b>10 通道多源场</b>：持续性场 ＋ GFS / HYCOM / CFSv2 的预报场
-        （每个都带一个"在不在"的标志通道）＋ 季节与时效，输出订正后的场。</p></div>`;
-    }
-    if (r.fields) {
-      const f = r.fields;
-      const row = (k, name, note) => {
-        const d = f[k] || { days: 0, files: 0 };
-        const on = d.days >= 90;
-        return `<tr><td>${name}</td><td>${d.days} 天</td><td>${d.files} 个场</td>
-          <td>${on ? "已启用" : `还差 ${90 - d.days} 天`}</td><td style="text-align:left">${note}</td></tr>`;
-      };
-      h += `<div class="ai-item"><b>多源场库积累情况</b>
-        <p class="muted small" style="margin:4px 0 0">
-        每个产品的历史预报场都存在 <code>data/fields/</code> 下，每天自动追加。
-        某个产品的场攒够 <b>90 天</b>才会打开它的输入通道——否则训练集里这个通道
-        99% 是零，模型学不会用，推理时突然喂真值反而像噪声
-        （实测把成绩从 0.24 拉到 0.44）。</p>
-        <div class="scroll"><table><thead><tr><th>产品</th><th>已有起报日</th><th>场文件</th>
-        <th>通道状态</th><th>来源</th></tr></thead><tbody>
-        ${row("gfs", "NCEP GFS", "AWS 公开存档 noaa-gfs-bdp-pds + GRIB 字节索引回补（每天只下 600 KB）")}
-        ${row("hycom", "HYCOM ESPC-D-V02", "上游 FMRC 只保留最近约 9 次起报，靠每日抓数累积")}
-        ${row("cfs", "NCEP CFSv2", "NOMADS 保留约 10 天，靠每日抓数累积")}
-        </tbody></table></div></div>`;
-    }
-    if (r.lim && r.lim.by_horizon) {
-      const b = r.lim.by_horizon;
-      h += `<div class="ai-item"><b>LIM · 样本外（${r.lim.train_window[0]} ~ ${r.lim.train_window[1]} 训练）</b>
-        <p class="muted small" style="margin:4px 0 0">
-        ${Object.entries(b).map(([hz, v]) =>
-          `${hz} 天：LIM ${fmt(v.lim, 3)} vs 持续性 ${fmt(v.persistence, 3)}`).join("　｜　")}</p></div>`;
-    }
-    box.innerHTML = h || `<p class="muted small">还没有验证结果。</p>`;
-  } catch (e) {
-    box.innerHTML = `<p class="muted small">读取失败：${esc(e.message)}</p>`;
-  }
-}
 
 $("#footer").innerHTML = `<a href="https://www.playai.org.cn/">← playai.org.cn 总入口</a>
   ｜数据源 NOAA OISST v2.1 · HYCOM ESPC-D-V02 · NCEP GFS · NCEP CFSv2
@@ -960,15 +930,17 @@ $("#footer").innerHTML = `<a href="https://www.playai.org.cn/">← playai.org.cn
   document.title = state.meta.site_name;
   const nm = localStorage.getItem(NAME_KEY);
   if (nm && $("#up-name")) $("#up-name").value = nm;
+  bindJumps();
   renderIdentity();
   renderRegions();
   renderAbout();
-  renderValidation();
-  renderLocalModels();
-  renderModelReport();
   loadRounds();
-  if (location.hash === "#chat") {
-    const btn = document.querySelector('#tabs button[data-tab="chat"]');
-    if (btn) btn.click();
-  }
+
+  // 「问本地大模型」只有后端真的活着才显示。上一版这个页签一直在，
+  // 但 LLM 服务停掉之后点进去只会看到连接错误——与其留个坏入口，不如藏起来。
+  const chatBtn = document.querySelector('#tabs button[data-tab="chat"]');
+  if (chatBtn && state.meta.chat_ok) chatBtn.classList.remove("hidden");
+
+  renderOverview();
+  jumpFromHash();
 })();

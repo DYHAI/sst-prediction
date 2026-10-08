@@ -1,15 +1,34 @@
 """极简折线图（复用 png.py 的编码器）。
 
-不画文字——文字要靠字体文件，代价不值当；坐标含义写在网页的图注里。
+刻度数字用 png.Canvas 里那套手写的 3×5 点阵字体画，不需要任何字体文件，
+保持零第三方依赖。坐标轴的含义（单位、时效）仍旧写在网页的图注里。
 """
 
 from __future__ import annotations
+
+import math
 
 from . import png
 
 BG = (255, 255, 255)
 AXIS = (190, 210, 222)
 GRID = (232, 240, 246)
+LABEL = (120, 140, 155)
+
+
+def _nice_step(raw: float) -> float:
+    """把刻度间隔吸附到 1 / 2 / 2.5 / 5 / 10 × 10^n。
+
+    不吸附的话 Y 轴会出现 1.00 / 0.76 / 0.52 / 0.27 这种数字——
+    位置是对的，但读不出量级，看着也不专业。
+    """
+    if raw <= 0:
+        return 1.0
+    mag = 10 ** math.floor(math.log10(raw))
+    for mult in (1.0, 2.0, 2.5, 5.0, 10.0):
+        if mult * mag >= raw:
+            return mult * mag
+    return 10.0 * mag
 
 
 def _y(v, lo, hi, top, height):
@@ -20,7 +39,7 @@ def _y(v, lo, hi, top, height):
 
 
 def line_chart(width: int, height: int, series: list[dict],
-               pad_l: int = 46, pad_r: int = 14, pad_t: int = 14, pad_b: int = 18,
+               pad_l: int = 46, pad_r: int = 14, pad_t: int = 14, pad_b: int = 30,
                y_pad: float = 0.08) -> bytes:
     """series: [{"values": [...], "color": (r,g,b), "width": int, "dash": bool}, ...]
 
@@ -35,17 +54,32 @@ def line_chart(width: int, height: int, series: list[dict],
     span = (hi - lo) or 1.0
     lo -= span * y_pad
     hi += span * y_pad
+    # 吸附到整齐的刻度上（0.0 / 0.2 / 0.4 …），别让 Y 轴出现 0.76 这种数
+    step = _nice_step((hi - lo) / 4)
+    lo = math.floor(lo / step) * step
+    hi = math.ceil(hi / step) * step
+    n_grid = max(1, int(round((hi - lo) / step)))
 
-    # 网格
-    for k in range(5):
-        y = pad_t + int(ih * k / 4)
+    # 网格 + Y 轴刻度数字（左边 46px 的边距就是留给它的）
+    for k in range(n_grid + 1):
+        y = pad_t + int(ih * k / n_grid)
         for x in range(pad_l, pad_l + iw):
             c.set(x, y, GRID)
+        tick = hi - (hi - lo) * k / n_grid
+        c.text_right(pad_l - 5, y - 2, f"{tick:.2f}", LABEL)
     # 轴
     for x in range(pad_l, pad_l + iw):
         c.set(x, pad_t + ih, AXIS)
     for y in range(pad_t, pad_t + ih + 1):
         c.set(pad_l, y, AXIS)
+
+    # X 轴刻度：这是第几个预报时效（1..N 天），隔位标注避免挤在一起
+    n_series = max(len(s["values"]) for s in series)
+    for i in range(n_series):
+        if n_series > 6 and i % 2:
+            continue
+        x = pad_l + (int(i * (iw - 1) / max(1, n_series - 1)) if n_series > 1 else iw // 2)
+        c.text_right(x + 5, pad_t + ih + 6, str(i + 1), LABEL)
 
     n = max(len(s["values"]) for s in series)
     for s in series:

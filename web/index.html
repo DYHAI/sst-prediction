@@ -4,20 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#062b4a">
+<meta name="description" content="预测南海 7 个海区未来 1/3/5 天的海表温度，和 HYCOM、GFS、CFSv2 三个官方预报产品同台比分。">
 <title>南海海温预测擂台</title>
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 
-<div class="sea-bg" aria-hidden="true">
-  <svg class="deco starfish s1" viewBox="0 0 100 100"><use href="#starfish"/></svg>
-  <svg class="deco shell sh1" viewBox="0 0 100 100"><use href="#shell"/></svg>
-  <svg class="deco starfish s2" viewBox="0 0 100 100"><use href="#starfish"/></svg>
-  <svg class="deco shell sh2" viewBox="0 0 100 100"><use href="#shell"/></svg>
-  <svg class="deco bubble b1" viewBox="0 0 40 40"><use href="#bubble"/></svg>
-  <svg class="deco bubble b2" viewBox="0 0 40 40"><use href="#bubble"/></svg>
-</div>
-
+<!-- 图形素材：只当图标用，不再满屏散落 -->
 <svg style="display:none" aria-hidden="true">
   <symbol id="starfish" viewBox="0 0 100 100">
     <path d="M50 6c3 0 5 2 6 6l8 24 25 1c4 0 6 3 6 6 0 2-1 4-4 6L70 66l8 25c1 4-1 7-4 8-2 1-4 0-6-2L50 82 32 97c-2 2-5 3-7 2-3-1-5-4-4-8l8-25L9 49c-3-2-4-4-4-6 0-3 2-6 6-6l25-1 8-24c1-4 3-6 6-6z"
@@ -32,42 +25,282 @@
     <path d="M50 14v60M38 20c-6 12-8 34-6 54M62 20c6 12 8 34 6 54M26 34c-3 10-3 28 0 40M74 34c3 10 3 28 0 40"
           stroke="#e0ab7c" stroke-width="2" fill="none" stroke-linecap="round"/>
   </symbol>
-  <symbol id="bubble" viewBox="0 0 40 40">
-    <circle cx="20" cy="20" r="17" fill="rgba(255,255,255,.10)" stroke="rgba(255,255,255,.35)" stroke-width="2"/>
+  <symbol id="wavemark" viewBox="0 0 32 32">
+    <path d="M2 20c4-5 8-5 12 0s8 5 12 0" fill="none" stroke="#0a6b96" stroke-width="3"
+          stroke-linecap="round"/>
+    <path d="M2 12c4-5 8-5 12 0s8 5 12 0" fill="none" stroke="#20beff" stroke-width="3"
+          stroke-linecap="round"/>
   </symbol>
 </svg>
 
-<header class="top">
-  <div class="waves" aria-hidden="true">
-    <svg viewBox="0 0 1440 90" preserveAspectRatio="none">
-      <path d="M0 60 C 180 20, 360 20, 540 55 C 720 90, 900 90, 1080 55 C 1260 20, 1350 30, 1440 45 L1440 90 L0 90 Z" fill="#f3f9fc"/>
-    </svg>
-  </div>
+<!-- ============================== 顶部导航 ============================== -->
+<header class="topbar">
   <div class="wrap">
-    <h1>南海海温预测擂台</h1>
-    <p class="sub">预测南海 7 个海区未来 1 / 3 / 5 天的日均海表温度 —— 和 HYCOM、GFS、CFSv2，以及本站模型同台比分。</p>
-    <nav class="tabs" id="tabs">
-      <button data-tab="submit" class="on">提交预测</button>
+    <div class="logo">
+      <svg viewBox="0 0 32 32"><use href="#wavemark"/></svg>
+      南海海温预测擂台
+    </div>
+    <nav class="nav" id="tabs">
+      <button data-tab="overview" class="on">概览</button>
       <button data-tab="board">排行榜</button>
+      <button data-tab="analysis">模型分析</button>
       <button data-tab="mhw">海洋热浪</button>
-      <button data-tab="extremes">极端值比拼</button>
-      <button data-tab="longtest">长期回测</button>
-      <button data-tab="maps">海温图</button>
-      <button data-tab="chat">问本地大模型</button>
-      <button data-tab="about">方法与文献</button>
+      <button data-tab="about" class="ghost">方法</button>
+      <button data-tab="chat" class="ghost hidden">问本地模型</button>
+      <button data-tab="submit" class="cta">提交预测</button>
     </nav>
   </div>
 </header>
 
+<!-- ====================== 头图：只在「概览」页显示 ====================== -->
+<section class="hero" id="hero">
+  <svg class="deco s1" viewBox="0 0 100 100"><use href="#starfish"/></svg>
+  <svg class="deco sh1" viewBox="0 0 100 100"><use href="#shell"/></svg>
+  <svg class="deco s2" viewBox="0 0 100 100"><use href="#starfish"/></svg>
+  <div class="wrap">
+    <h1>南海海温预测擂台</h1>
+    <p class="lede">
+      预测南海 <b>7 个海区</b>未来 <b>1 / 3 / 5 天</b>的日均海表温度，
+      和 <b>HYCOM、GFS、CFSv2</b> 三个官方预报产品同台比分。
+      真值取自 NOAA OISST v2.1，上传即自动评测、自动上榜。
+    </p>
+    <div class="hero-cta">
+      <button class="solid" data-jump="submit">提交我的预测</button>
+      <button data-jump="board">看排行榜</button>
+      <button data-jump="analysis">看分析</button>
+    </div>
+  </div>
+  <div class="waves" aria-hidden="true">
+    <svg viewBox="0 0 1440 90" preserveAspectRatio="none">
+      <path d="M0 60 C 180 20, 360 20, 540 55 C 720 90, 900 90, 1080 55 C 1260 20, 1350 30, 1440 45 L1440 90 L0 90 Z" fill="#f5f9fc"/>
+    </svg>
+  </div>
+</section>
+
 <main class="wrap">
 
-  <!-- ============================ 提交 ============================ -->
-  <section id="tab-submit">
-    <div class="card" id="identity">
+  <!-- ============================== 概览 ============================== -->
+  <section id="tab-overview" class="pane">
+    <div class="stats" id="ov-stats">
+      <div class="stat"><div class="k">竞猜海区</div><div class="v">7</div>
+        <div class="d">北部湾 → 南海南部</div></div>
+      <div class="stat"><div class="k">预报时效</div><div class="v">1/3/5<small>天</small></div>
+        <div class="d">分别在目标日前 1/3/5 天截止</div></div>
+      <div class="stat"><div class="k">基准对手</div><div class="v">3<small>个官方产品</small></div>
+        <div class="d">HYCOM · GFS · CFSv2</div></div>
+      <div class="stat"><div class="k">内置对照</div><div class="v">1<small>条基线</small></div>
+        <div class="d">持续性 —— 海温预报里最难打败的简单对手</div></div>
+    </div>
+
+    <h2 class="sec">怎么玩</h2>
+    <p class="sec-note">三步，不需要邮箱，也不需要装任何东西。</p>
+    <div class="stats" style="grid-template-columns:repeat(auto-fit,minmax(250px,1fr))">
+      <div class="stat"><div class="k">① 起个名字</div>
+        <div class="d" style="margin-top:6px">在本机生成一个私钥（token），以后提交都用它。</div></div>
+      <div class="stat"><div class="k">② 提交预测</div>
+        <div class="d" style="margin-top:6px">网页上手动填 7×3 个格子，或者直接上传
+          CSV / NetCDF / Parquet 网格场。</div></div>
+      <div class="stat"><div class="k">③ 自动评测</div>
+        <div class="d" style="margin-top:6px">真值到齐后自动算分、自动上榜，
+          和官方产品同一条基准线比。</div></div>
+    </div>
+
+    <h2 class="sec">榜单快照</h2>
+    <p class="sec-note">
+      综合分 = 100 × (0.45×准确度 + 0.20×稳定性 + 0.35×命中率)。
+      基准是<b>逐格取</b>同一海区、同一时效下表现最好的官方产品，和它打平得 0.50。
+    </p>
+    <div class="card tight">
+      <div class="tbl-wrap" style="max-height:none"><table id="ov-board"></table></div>
+      <div class="row right"><button class="ghost" data-jump="board">查看完整榜单 →</button></div>
+    </div>
+  </section>
+
+  <!-- ============================== 排行榜 ============================== -->
+  <section id="tab-board" class="pane hidden">
+    <h2 class="sec">综合排行榜</h2>
+    <p class="sec-note">
+      综合分 = 100 × (0.45×准确度 + 0.20×稳定性 + 0.35×命中率)。
+      <b>基准是逐格取的</b>：同一海区、同一时效下表现最好的官方产品（HYCOM / GFS / CFSv2）的 MAE，
+      和它打平得 0.50。榜单只比较<b>所有官方产品都有数据的那几天</b>，避免"样本少的人更准"。
+    </p>
+    <div class="card tight">
       <div class="row between">
+        <div class="seg" style="margin:0">
+          <button class="on" data-board-pane="main">参赛者榜单</button>
+          <button data-board-pane="ref">基准线</button>
+        </div>
+        <select id="window">
+          <option value="30">最近 30 天</option>
+          <option value="60" selected>最近 60 天</option>
+          <option value="180">最近 180 天</option>
+          <option value="0">全部</option>
+        </select>
+      </div>
+      <div id="board-pane-main">
+        <div class="tbl-wrap"><table id="board-table"></table></div>
+      </div>
+      <div id="board-pane-ref" class="hidden">
+        <p class="sec-note" style="margin-top:12px">
+          这是"标准"的具体数字。谁想拿高分，就得在这些 MAE 上更小。
+        </p>
+        <div class="tbl-wrap"><table id="ref-table"></table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== 模型分析 ============================== -->
+  <section id="tab-analysis" class="pane hidden">
+    <h2 class="sec">模型分析</h2>
+    <p class="sec-note">
+      同一批预报，换不同的切法看：长时间回测看<b>时效衰减</b>，
+      极端值看<b>热浪日会不会失灵</b>，空间分布看<b>误差长在哪里</b>。
+    </p>
+    <div class="seg" id="an-seg">
+      <button class="on" data-an="longtest">长期回测</button>
+      <button data-an="extremes">极端值与热浪</button>
+      <button data-an="maps">海温场</button>
+    </div>
+
+    <!-- ---- 长期回测 ---- -->
+    <div id="an-longtest">
+      <div class="card">
+        <div class="row between">
+          <h3 class="sub" style="margin:0">2023–2026 长期回测：1–10 天时效</h3>
+          <span class="muted small" id="lt-design"></span>
+        </div>
+        <p class="sec-note" style="margin-top:6px">
+          训练期 <b>2023-01-01 ~ 2024-12-31</b>，测试期 <b>2025-01-01 ~ 2026-09-30</b>。
+          所有模型只用训练期数据拟合，在同一段没见过的测试期上评估——同一把尺子。
+        </p>
+        <p class="muted small" id="lt-note"></p>
+        <div class="row">
+          <select id="lt-metric">
+            <option value="mae" selected>MAE 平均绝对误差</option>
+            <option value="rmse">RMSE 均方根误差</option>
+            <option value="bias">偏差</option>
+          </select>
+          <label class="muted small" style="display:flex;align-items:center;gap:6px">
+            <input type="checkbox" id="lt-zoom" checked style="width:auto"> 隐藏气候态与 GFS（放大对比）
+          </label>
+        </div>
+        <div class="map-box"><img id="lt-chart" alt="误差随时效变化"></div>
+        <p class="muted small" id="lt-legend"></p>
+      </div>
+      <div class="card">
+        <div class="row between"><h3 class="sub" style="margin:0">逐时效对比</h3>
+          <span class="muted small">单位 °C</span></div>
+        <div class="tbl-wrap"><table id="lt-table"></table></div>
+      </div>
+      <div class="card">
+        <h3 class="sub" style="margin:0">分年度对比</h3>
+        <p class="sec-note">全部时效合并，看不同年份的难度差异。</p>
+        <div class="tbl-wrap" style="max-height:none"><table id="lt-year"></table></div>
+      </div>
+      <div class="card">
+        <div class="row between" style="margin-top:0">
+          <h3 class="sub" style="margin:0">热浪日 vs 正常日</h3>
+          <span class="muted small">「劣化」= 热浪日 MAE ÷ 正常日 MAE − 1</span>
+        </div>
+        <div class="tbl-wrap"><table id="lt-hot"></table></div>
+      </div>
+    </div>
+
+    <!-- ---- 极端值与热浪 ---- -->
+    <div id="an-extremes" class="hidden">
+      <div class="card">
+        <div class="row between">
+          <h3 class="sub" style="margin:0">热浪专项榜 —— 只看"认不认得出热浪"</h3>
+          <select id="hwb-days">
+            <option value="90">最近 90 天</option>
+            <option value="180">最近 180 天</option>
+            <option value="365" selected>最近 1 年</option>
+            <option value="0">全部</option>
+          </select>
+        </div>
+        <p class="sec-note">
+          这张榜<b>不看温度报得多准</b>，只看能不能提前认出热浪。
+          不能直接按 POD 排——本窗口热浪日占一半左右，<b>一律报"是"就能拿 POD=100%</b>。
+          所以主排序用两个对随机猜测公平的评分：
+        </p>
+        <ul class="muted small">
+          <li><b>ETS（公平威胁评分）</b>＝ (命中 − 随机命中) ÷ (命中+空报+漏报 − 随机命中)。
+            0 表示和随机猜一样，1 表示完美；「一律报是」恰好得 <b>0</b>。</li>
+          <li><b>TSS（真实技巧统计量）</b>＝ POD − 空报率（相对非热浪日）。同样 0 无技巧、1 完美。</li>
+          <li><b>专项分</b> = 100 × (0.6×ETS + 0.4×TSS)。</li>
+        </ul>
+        <div class="kv" id="hwb-summary"></div>
+        <div class="tbl-wrap"><table id="hwb-table"></table></div>
+        <p class="muted small" id="hwb-note"></p>
+      </div>
+
+      <div class="card">
+        <div class="row between">
+          <h3 class="sub" style="margin:0">模型在极端值上的表现</h3>
+          <select id="ex-days">
+            <option value="90">最近 90 天</option>
+            <option value="180" selected>最近 180 天</option>
+            <option value="365">最近 1 年</option>
+            <option value="0">全部</option>
+          </select>
+        </div>
+        <p class="sec-note">
+          一个模型平时 MAE 很漂亮、一到热浪就失灵，在实际使用里几乎没用。
+          所以这里把每个条目的成绩<b>按"目标日是不是热浪日"拆开</b>，再单独看它能不能提前认出热浪。
+        </p>
+        <div class="kv" id="ex-summary"></div>
+        <div class="tbl-wrap"><table id="ex-table"></table></div>
+        <p class="muted small">
+          <b>POD（命中率）</b>＝真热浪日里被预报出来的比例，越高越好；
+          <b>FAR（空报率）</b>＝预报的热浪里其实不是的比例，越低越好。
+          注意基准：本窗口有相当比例的日子本身就是热浪日，
+          "一律报热浪"也能拿到 POD=1，但 FAR 会等于非热浪日占比——
+          所以要看这两个数的组合，而不是单个。
+        </p>
+      </div>
+    </div>
+
+    <!-- ---- 海温场 ---- -->
+    <div id="an-maps" class="hidden">
+      <div class="card">
+        <div class="row between">
+          <h3 class="sub" style="margin:0">海温场（NOAA OISST v2.1）</h3>
+          <span class="muted small">黑框 = 7 个竞猜海区的边界</span>
+        </div>
+        <p class="sec-note">
+          这是真正的"答案纸"：结算时每个黑框内的海温做 cos(纬度) 加权平均，
+          就是各海区当天的真值。选个日期看看南海海温长什么样。
+        </p>
+        <div class="row">
+          <input id="map-date" type="date">
+          <button id="map-btn" class="primary">出图</button>
+        </div>
+        <div id="map-msg" class="msg"></div>
+        <div class="map-box"><img id="map-img" alt="南海海表温度图"></div>
+        <p class="muted small" id="map-caption"></p>
+      </div>
+      <div class="card">
+        <h3 class="sub" style="margin:0">官方产品近 60 天的误差对比</h3>
+        <p class="sec-note">HYCOM / GFS / CFSv2 在同一段窗口里的成绩，也就是榜单基准线的来源。</p>
+        <div class="tbl-wrap"><table id="prod-err-table"></table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== 提交预测 ============================== -->
+  <section id="tab-submit" class="pane hidden">
+    <h2 class="sec">提交预测</h2>
+    <p class="sec-note">
+      时效 h 天的意思：必须在<b>目标日往前 h 天的 00:00 UTC（北京 08:00）之前</b>提交，过点不能改。
+    </p>
+
+    <div class="card" id="identity">
+      <div class="row between" style="margin-top:0">
         <div>
-          <strong>你是哪位</strong>
-          <p class="muted small">填个名字会在这台机器上生成一个私钥（token），以后提交都用它，不需要邮箱。</p>
+          <h3 class="sub" style="margin:0">① 你是哪位</h3>
+          <p class="sec-note" style="margin:4px 0 0">
+            填个名字会在这台机器上生成一个私钥（token），以后提交都用它，不需要邮箱。
+          </p>
         </div>
         <div id="who-box"></div>
       </div>
@@ -79,26 +312,21 @@
     </div>
 
     <div class="card">
-      <div class="row between">
-        <strong>手动填写</strong>
+      <div class="row between" style="margin-top:0">
+        <h3 class="sub" style="margin:0">② 手动填写</h3>
         <span class="muted small" id="truth-hint"></span>
       </div>
-      <p class="muted small">
-        时效 h 天的意思：必须在<b>目标日往前 h 天的 00:00 UTC（北京 08:00）之前</b>提交，过点不能改。
-        单位 °C，可以留空。
-      </p>
       <div id="rounds"></div>
       <div class="row right"><button id="save-btn" class="primary">保存全部</button></div>
       <div id="save-msg" class="msg"></div>
     </div>
 
     <div class="card" id="upload-card">
-      <strong>上传整个预报产品（推荐给模型玩家）</strong>
-      <p class="muted small">
-        直接把你模型的输出丢过来，我们负责解析、按海区聚合、自动评测、自动上榜单。
+      <h3 class="sub" style="margin:0">② 或者直接上传预报产品</h3>
+      <p class="sec-note">
+        适合模型玩家：把输出丢过来，我们负责解析、按海区聚合、自动评测、自动上榜。
         支持 <b>CSV</b>（海区表或网格场）、<b>NetCDF</b>（.nc）、<b>Parquet</b>。
-        网格文件需要 <code>lat / lon / sst</code> 三列（或三维数组），时空列名常见写法都认。
-        时区统一按 UTC 日期；温度写开尔文或摄氏度都可以，自动识别。
+        网格文件需要 <code>lat / lon / sst</code> 三列（或三维数组）；温度写开尔文或摄氏度都行，自动识别。
       </p>
       <div class="row">
         <input id="up-name" placeholder="模型 / 队伍名（第一次提交时填）" maxlength="40">
@@ -114,7 +342,7 @@
       </div>
       <div id="up-msg" class="msg"></div>
       <div id="up-result"></div>
-      <details class="muted small" style="margin-top:10px">
+      <details class="acc" style="margin-top:14px">
         <summary>命令行 / API 提交方式</summary>
         <pre class="code"># 首次：登记名字，会打印 token
 python3 -m tools.submit_file --name "我的模型" --file pred.csv
@@ -136,126 +364,37 @@ time,lat,lon,sst</pre>
       </details>
     </div>
 
-    <div class="card" id="region-card">
-      <strong>7 个海区的经纬度范围</strong>
-      <p class="muted small">结算时取每个盒子内所有有效海格点的 cos(纬度) 加权平均。海温图上黑框就是这七个范围。</p>
-      <div class="scroll"><table id="region-table"></table></div>
-    </div>
-
     <div class="card hidden" id="my-card">
-      <div class="row between">
-        <strong>我的成绩</strong>
+      <div class="row between" style="margin-top:0">
+        <h3 class="sub" style="margin:0">我的成绩</h3>
         <span class="muted small" id="my-summary"></span>
       </div>
       <div id="my-detail"></div>
     </div>
+
+    <details class="acc" id="region-card">
+      <summary>7 个海区的经纬度范围</summary>
+      <p class="sec-note">
+        结算时取每个盒子内所有有效海格点的 cos(纬度) 加权平均。海温图上黑框就是这七个范围。
+      </p>
+      <div class="tbl-wrap"><table id="region-table"></table></div>
+    </details>
   </section>
 
-  <!-- ============================ 排行榜 ============================ -->
-  <section id="tab-board" class="hidden">
-    <div class="card">
-      <div class="row between">
-        <strong>排行榜</strong>
-        <select id="window">
-          <option value="30">最近 30 天</option>
-          <option value="60" selected>最近 60 天</option>
-          <option value="180">最近 180 天</option>
-          <option value="0">全部</option>
-        </select>
-      </div>
-      <p class="muted small">
-        综合分 = 100 × (0.45×准确度 + 0.20×稳定性 + 0.35×命中率)。
-        <b>基准是逐格取的</b>：同一海区、同一时效下表现最好的官方产品（HYCOM / GFS / CFSv2）
-        的 MAE，和它打平得 0.50。榜单只比较<b>所有官方产品都有数据的那几天</b>，
-        避免"样本少的人更准"。
-      </p>
-      <div class="scroll"><table id="board-table"></table></div>
-    </div>
-    <div class="card">
-      <strong>每个海区·时效的基准线</strong>
-      <p class="muted small">这是"标准"的具体数字。谁想拿高分，就得在这些 MAE 上更小。</p>
-      <div class="scroll"><table id="ref-table"></table></div>
-    </div>
-  </section>
+  <!-- ============================== 海洋热浪 ============================== -->
+  <section id="tab-mhw" class="pane hidden">
+    <h2 class="sec">海洋热浪</h2>
+    <p class="sec-note">
+      海洋热浪是<b>海温连续多天明显高于当地历史同期水平</b>的极端暖事件，是珊瑚白化、
+      渔业减产、养殖暴毙的直接推手。判定用 Hobday et al. (2016) 的层级定义。
+    </p>
 
-  <!-- ============================ 海洋热浪 ============================ -->
-  <!-- ============================ 长期回测 ============================ -->
-  <section id="tab-longtest" class="hidden">
-    <div class="card">
-      <div class="row between">
-        <strong>2023–2026 长期回测：1–10 天时效</strong>
-        <span class="muted small" id="lt-design"></span>
-      </div>
-      <p class="muted small">
-        训练期 <b>2023-01-01 ~ 2024-12-31</b>，测试期 <b>2025-01-01 ~ 2026-09-30</b>。
-        所有模型只用训练期数据拟合，在同一段没见过的测试期上评估——同一把尺子。
-        预报时效 1 到 10 天，每天、每个海区、每个时效各出一条预报，用 OISST 海区均值验证。
-      </p>
-      <p class="muted small" id="lt-note"></p>
-      <div class="row">
-        <select id="lt-metric">
-          <option value="mae" selected>MAE 平均绝对误差</option>
-          <option value="rmse">RMSE 均方根误差</option>
-          <option value="bias">偏差</option>
-        </select>
-        <label class="muted small" style="display:flex;align-items:center;gap:6px">
-          <input type="checkbox" id="lt-zoom" checked style="width:auto"> 隐藏气候态与 GFS（放大对比）
-        </label>
-        <span class="muted small">横轴 = 预报时效（天）</span>
-      </div>
-      <div class="map-box"><img id="lt-chart" alt="误差随时效变化"></div>
-      <p class="muted small">
-        图例：
-        <span style="color:#141e28;font-weight:600">━ 本站 U-Net</span>　
-        <span style="color:#46be78">━ 阻尼持续性</span>　
-        <span style="color:#f0b432">━ 本站 LIM</span>　
-        <span style="color:#af6ec8">━ 本站 XGBoost</span>　
-        <span style="color:#96a5b4">━ 持续性</span>　
-        <span style="color:#eb783c">━ NCEP GFS</span>　
-        <span style="color:#cdd2dc">━ 气候态</span>
-      </p>
+    <div class="stats" style="grid-template-columns:repeat(auto-fit,minmax(240px,320px))">
+      <div class="stat hi" id="mhw-hero-main"></div>
     </div>
 
-    <div class="card">
-      <div class="row between">
-        <strong>逐时效对比</strong>
-        <span class="muted small">单位 °C</span>
-      </div>
-      <div class="scroll"><table id="lt-table"></table></div>
-    </div>
-
-    <div class="card">
-      <div class="row between">
-        <strong>分年度对比（全部时效合并）</strong>
-        <span class="muted small">看不同年份的难度差异</span>
-      </div>
-      <div class="scroll"><table id="lt-year"></table></div>
-    </div>
-
-    <div class="card">
-      <div class="row between">
-        <strong>热浪日 vs 正常日</strong>
-        <span class="muted small">每个时效分别统计</span>
-      </div>
-      <p class="muted small">
-        同一批预报里，目标日落在海洋热浪内的那些样本单独算一遍。
-        「劣化」= 热浪日 MAE ÷ 正常日 MAE − 1。
-      </p>
-      <div class="scroll"><table id="lt-hot"></table></div>
-    </div>
-  </section>
-
-  <section id="tab-mhw" class="hidden">
-    <div class="card">
-      <div class="row between">
-        <strong>什么是海洋热浪（Marine Heatwave）</strong>
-        <span class="muted small" id="mhw-meta"></span>
-      </div>
-      <p class="muted small">
-        海洋热浪指的是<b>海温连续多天明显高于当地历史同期水平</b>的极端暖事件，
-        和陆地上的热浪一样会持续、会移动，是珊瑚白化、渔业减产、养殖暴毙的直接推手。
-        判定用的是 Hobday et al. (2016) 的层级定义：
-      </p>
+    <details class="acc">
+      <summary>判定标准与强度分级（Hobday et al.）</summary>
       <ol class="muted small">
         <li>对每个海区、每个日期，取 <b>1982–2011 年</b>气候态，在前后 ±5 天内算
           <b>90 分位阈值</b>（约 330 个样本）；</li>
@@ -268,22 +407,23 @@ time,lat,lon,sst</pre>
         3–4× 为 <b>III 严重</b>、>4× 为 <b>IV 极端</b>。
       </p>
       <p class="muted small" id="mhw-note"></p>
-    </div>
+      <p class="muted small" id="mhw-meta"></p>
+    </details>
 
     <div class="card">
-      <div class="row between">
-        <strong>当前状态</strong>
+      <div class="row between" style="margin-top:0">
+        <h3 class="sub" style="margin:0">当前状态</h3>
         <span class="muted small" id="mhw-latest"></span>
       </div>
-      <div class="scroll"><table id="mhw-status"></table></div>
+      <div class="tbl-wrap"><table id="mhw-status"></table></div>
     </div>
 
     <div class="card">
-      <div class="row between">
-        <strong>海温 vs 90 分位阈值</strong>
+      <div class="row between" style="margin-top:0">
+        <h3 class="sub" style="margin:0">海温 vs 90 分位阈值</h3>
         <select id="mhw-region"></select>
       </div>
-      <p class="muted small">
+      <p class="sec-note">
         <span style="color:#0b7ea8">━ 实测海温</span>　
         <span style="color:#e99650">┅ 90 分位阈值</span>　
         <span class="muted">┈ 气候态均值</span>　
@@ -292,107 +432,60 @@ time,lat,lon,sst</pre>
       <div class="map-box"><img id="mhw-chart" alt="海温与阈值对比"></div>
     </div>
 
-    <div class="card">
-      <div class="row between">
-        <strong>未来几天还会是热浪吗</strong>
-        <span class="muted small">各模型预报值是否仍高于阈值</span>
+    <div class="grid2">
+      <div class="card">
+        <h3 class="sub" style="margin:0">未来几天还会是热浪吗</h3>
+        <p class="sec-note">各模型预报值是否仍高于阈值。</p>
+        <div class="tbl-wrap"><table id="mhw-pred"></table></div>
       </div>
-      <div class="scroll"><table id="mhw-pred"></table></div>
+      <div class="card">
+        <div class="row between" style="margin-top:0">
+          <h3 class="sub" style="margin:0">最近的热浪事件</h3>
+          <select id="mhw-days">
+            <option value="120">最近 120 天</option>
+            <option value="365" selected>最近 1 年</option>
+            <option value="1825">最近 5 年</option>
+            <option value="0">全部</option>
+          </select>
+        </div>
+        <div class="tbl-wrap"><table id="mhw-events"></table></div>
+      </div>
     </div>
 
     <div class="card">
-      <div class="row between">
-        <strong>最近的热浪事件</strong>
-        <select id="mhw-days">
-          <option value="120">最近 120 天</option>
-          <option value="365" selected>最近 1 年</option>
-          <option value="1825">最近 5 年</option>
-          <option value="0">全部</option>
-        </select>
-      </div>
-      <div class="scroll"><table id="mhw-events"></table></div>
-    </div>
-
-    <div class="card">
-      <div class="row between">
-        <strong>各海区逐年热浪天数</strong>
-        <span class="muted small">横轴为年份</span>
-      </div>
+      <h3 class="sub" style="margin:0">各海区逐年热浪天数</h3>
       <div class="map-box"><img id="mhw-yearly" alt="逐年热浪天数"></div>
-      <div class="scroll"><table id="mhw-yearly-table"></table></div>
+      <div class="tbl-wrap"><table id="mhw-yearly-table"></table></div>
     </div>
   </section>
 
-  <!-- ============================ 极端值比拼 ============================ -->
-  <section id="tab-extremes" class="hidden">
+  <!-- ============================== 方法与文献 ============================== -->
+  <section id="tab-about" class="pane hidden">
+    <h2 class="sec">方法与文献</h2>
+    <div class="card" id="about-body"></div>
     <div class="card">
-      <div class="row between">
-        <strong>热浪专项榜 —— 只看"认不认得出热浪"</strong>
-        <select id="hwb-days">
-          <option value="90">最近 90 天</option>
-          <option value="180">最近 180 天</option>
-          <option value="365" selected>最近 1 年</option>
-          <option value="0">全部</option>
-        </select>
-      </div>
-      <p class="muted small">
-        这张榜<b>不看温度报得多准</b>，只看能不能提前认出热浪。
-        不能直接按 POD 排——本窗口热浪日占一半左右，<b>一律报"是"就能拿 POD=100%</b>。
-        所以主排序用两个对随机猜测公平的评分：
+      <h3 class="sub" style="margin:0">海洋 AI 预报模型（我们参考的对象）</h3>
+      <p class="sec-note">
+        这些是目前最有代表性的数据驱动预报模型。它们需要大规模 GPU 训练和多年的再分析数据，
+        本站跑不动，但它们的思路决定了我们把这个擂台做成什么样子——
+        <b>谁都可以把自己的模型接进来比</b>。上传入口在「提交预测」页。
       </p>
-      <ul class="muted small">
-        <li><b>ETS（公平威胁评分）</b>＝ (命中 − 随机命中) ÷ (命中+空报+漏报 − 随机命中)。
-          0 表示和随机猜一样，1 表示完美；「一律报是」恰好得 <b>0</b>。</li>
-        <li><b>TSS（真实技巧统计量）</b>＝ POD − 空报率（相对非热浪日）。同样 0 无技巧、1 完美。</li>
-        <li><b>专项分</b> = 100 × (0.6×ETS + 0.4×TSS)。</li>
-      </ul>
-      <div class="kv" id="hwb-summary"></div>
-      <div class="scroll"><table id="hwb-table"></table></div>
-      <p class="muted small" id="hwb-note"></p>
-    </div>
-
-    <div class="card">
-      <div class="row between">
-        <strong>模型在极端值上的表现</strong>
-        <select id="ex-days">
-          <option value="90">最近 90 天</option>
-          <option value="180" selected>最近 180 天</option>
-          <option value="365">最近 1 年</option>
-          <option value="0">全部</option>
-        </select>
-      </div>
-      <p class="muted small">
-        极端事件才是预报真正有代价的地方。一个模型平时 MAE 很漂亮、一到热浪就失灵，
-        在实际使用里几乎没用。所以这里把每个条目的成绩<b>按"目标日是不是热浪日"拆开</b>，
-        再单独看它能不能提前认出热浪。
-      </p>
-      <div class="kv" id="ex-summary"></div>
-      <div class="scroll"><table id="ex-table"></table></div>
-      <p class="muted small">
-        <b>POD（命中率）</b>＝真热浪日里被预报出来的比例，越高越好；
-        <b>FAR（空报率）</b>＝预报的热浪里其实不是的比例，越低越好。
-        注意基准：本窗口有相当比例的日子本身就是热浪日，
-        "一律报热浪"也能拿到 POD=1，但 FAR 会等于非热浪日占比——
-        所以要看这两个数的组合，而不是单个。
-      </p>
+      <div id="ai-models"></div>
     </div>
   </section>
 
-  <!-- ============================ 海温图 ============================ -->
-  <!-- ============================ 本地大模型 ============================ -->
-  <section id="tab-chat" class="hidden">
+  <!-- ============================== 本地大模型 ============================== -->
+  <section id="tab-chat" class="pane hidden">
+    <h2 class="sec">问本地大模型</h2>
     <div class="card">
-      <div class="row between">
-        <strong>问本地大模型</strong>
+      <div class="row between" style="margin-top:0">
         <span class="muted small" id="chat-meta"></span>
       </div>
-      <p class="muted small">
-        这个聊天框后面是跑在站长这台 Mac mini 上的 <b>27B 大模型</b>
-        （Bonsai 2 27B，三元量化 5.95 GB，用本机 GPU 推理）。
+      <p class="sec-note">
+        这个聊天框后面是跑在站长这台 Mac mini 上的 <b>27B 大模型</b>。
         不联网、不调用任何云 API，你的问题不会离开这台机器。
       </p>
       <p class="muted small" id="chat-note"></p>
-
       <div id="chat-log" class="chat-log">
         <div class="chat-hint">
           可以问它海温、海洋热浪、预报方法，也可以随便聊。试试：
@@ -400,15 +493,13 @@ time,lat,lon,sst</pre>
             <button class="chip" data-q="用三句话解释海洋热浪是怎么形成的。">海洋热浪怎么形成</button>
             <button class="chip" data-q="南海海温预报为什么很难打赢持续性基线？">为什么难打赢持续性</button>
             <button class="chip" data-q="30 公里/小时等于多少米/秒？走 2.5 小时多少公里？">算一道题</button>
-            <button class="chip" data-q="用一句话介绍一下你自己。">介绍一下你自己</button>
           </div>
         </div>
       </div>
-
       <div class="chat-input">
         <textarea id="chat-text" rows="2" placeholder="输入问题，回车发送（Shift+回车换行）"></textarea>
         <div class="chat-actions">
-          <button id="chat-clear" class="small">清空</button>
+          <button id="chat-clear" class="ghost">清空</button>
           <button id="chat-send" class="primary">发送</button>
         </div>
       </div>
@@ -416,73 +507,14 @@ time,lat,lon,sst</pre>
     </div>
   </section>
 
-  <section id="tab-maps" class="hidden">
-    <div class="card">
-      <div class="row between">
-        <strong>海温场：真值 vs 本站模型</strong>
-        <span class="muted small">黑框 = 7 个竞猜海区的边界</span>
-      </div>
-      <div class="row">
-        <select id="map-kind">
-          <option value="truth">OISST 真值</option>
-          <option value="model">本站模型预报</option>
-          <option value="diff">误差（模型 − 真值）</option>
-        </select>
-        <input id="map-date" type="date">
-        <select id="map-horizon">
-          <option value="1">时效 1 天</option>
-          <option value="3" selected>时效 3 天</option>
-          <option value="5">时效 5 天</option>
-        </select>
-        <button id="map-btn" class="primary">出图</button>
-      </div>
-      <div id="map-msg" class="msg"></div>
-      <div class="map-box"><img id="map-img" alt="南海海表温度图"></div>
-      <p class="muted small" id="map-caption"></p>
-    </div>
-
-    <div class="card">
-      <strong>官方产品在同一时段的误差对比</strong>
-      <div class="scroll"><table id="prod-err-table"></table></div>
-    </div>
-  </section>
-
-  <!-- ============================ 方法 ============================ -->
-  <section id="tab-about" class="hidden">
-    <div class="card" id="about-body"></div>
-    <div class="card">
-      <strong>海洋 AI 预报模型（我们参考的对象）</strong>
-      <p class="muted small">
-        这些是目前最有代表性的数据驱动预报模型。它们需要大规模 GPU 训练和多年的再分析数据，
-        本站跑不动，但它们的思路决定了我们把这个擂台做成什么样子——
-        <b>谁都可以把自己的模型接进来比</b>。上传入口就在「提交预测」页。
-      </p>
-      <div id="ai-models"></div>
-    </div>
-    <div class="card" id="model-report-card">
-      <strong>各模型的独立验证结果</strong>
-      <p class="muted small">下面每个数字都能用仓库里的脚本复现：<code>tools/validate_model.py</code>、<code>tools/train_postproc.py</code>、<code>tools/train_unet.py</code>。</p>
-      <div id="model-report"></div>
-    </div>
-    <div class="card" id="local-models-card">
-      <strong>本站模型清单</strong>
-      <div id="local-models"></div>
-    </div>
-    <div class="card" id="validation-card">
-      <strong>本站模型的样本外验证</strong>
-      <div id="validation"></div>
-    </div>
-  </section>
-
 </main>
 
-<footer class="wrap">
-  <div class="row between">
+<footer>
+  <div class="wrap">
     <span class="muted small" id="footer"></span>
-    <span class="deco-foot">
-      <svg class="deco" viewBox="0 0 100 100"><use href="#starfish"/></svg>
-      <svg class="deco" viewBox="0 0 100 100"><use href="#shell"/></svg>
-      <svg class="deco" viewBox="0 0 100 100"><use href="#starfish"/></svg>
+    <span class="links">
+      <a href="https://github.com/DYHAI/sst-prediction">源码</a>
+      <a href="https://playai.org.cn">playai.org.cn</a>
     </span>
   </div>
 </footer>

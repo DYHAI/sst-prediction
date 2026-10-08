@@ -46,14 +46,25 @@ def load_entries(conn, window_days: int | None = 60) -> list[scoring.Verif]:
         out.append(scoring.Verif(row["entity"], row["region"], row["horizon"],
                                  row["target_date"], row["forecast"], row["truth"]))
 
+    # 只收「官方产品」进来（HYCOM / GFS / CFSv2）。products 表里还躺着站长自己
+    # 训的那批模型（LIM / 梯度提升树 / U-Net / 多源融合），它们不再作为参赛条目——
+    # 这个擂台是给别人来比的，不是拿来秀自己模型的。过滤掉之后，
+    # 综合分的参考基准（逐格取最强的官方产品）不受影响，因为基准本来就只看官方产品。
+    ref_codes = list(P.REFERENCE_PRODUCTS)
+    ph = ",".join("?" for _ in ref_codes)
+    pwhere = f" WHERE pr.product IN ({ph})"
+    pargs = list(ref_codes)
+    if window_days:
+        pwhere += " AND pr.target_date >= ?"
+        pargs.append(_since(window_days))
     sql = f"""
         SELECT 'product:' || pr.product AS entity, pr.region, pr.horizon,
                pr.target_date, pr.value AS forecast, t.sst AS truth
         FROM products pr
         JOIN truth t ON t.region = pr.region AND t.date = pr.target_date
-        {where.replace('s.target_date', 'pr.target_date')}
+        {pwhere}
     """
-    for row in conn.execute(sql, args):
+    for row in conn.execute(sql, pargs):
         out.append(scoring.Verif(row["entity"], row["region"], row["horizon"],
                                  row["target_date"], row["forecast"], row["truth"]))
 

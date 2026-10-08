@@ -14,6 +14,27 @@ def _chunk(tag: bytes, data: bytes) -> bytes:
             + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF))
 
 
+# 3×5 点阵字体。这个站点坚持零第三方依赖（只用标准库），所以没法用
+# Pillow / matplotlib 写字。但图表如果没有刻度数字就完全读不出量级——
+# 之前 line_chart 留了 46px 的左边距却从来不画东西，看起来就是一块空白。
+# 这里手写一套最小字符集，够画坐标轴刻度。
+_FONT_3X5: dict[str, tuple[str, ...]] = {
+    "0": ("111", "101", "101", "101", "111"),
+    "1": ("010", "110", "010", "010", "111"),
+    "2": ("111", "001", "111", "100", "111"),
+    "3": ("111", "001", "111", "001", "111"),
+    "4": ("101", "101", "111", "001", "001"),
+    "5": ("111", "100", "111", "001", "111"),
+    "6": ("111", "100", "111", "101", "111"),
+    "7": ("111", "001", "001", "001", "001"),
+    "8": ("111", "101", "111", "101", "111"),
+    "9": ("111", "101", "111", "001", "111"),
+    ".": ("000", "000", "000", "000", "010"),
+    "-": ("000", "000", "111", "000", "000"),
+    " ": ("000", "000", "000", "000", "000"),
+}
+
+
 class Canvas:
     """一张 RGB 画布，行优先。"""
 
@@ -40,6 +61,31 @@ class Canvas:
             for y in range(y0, y1):
                 self.set(x0 + t, y, color)
                 self.set(x1 - 1 - t, y, color)
+
+    @staticmethod
+    def text_width(s: str, scale: int = 1, spacing: int = 1) -> int:
+        return max(0, len(s) * (3 + spacing) * scale - spacing * scale)
+
+    def text(self, x: int, y: int, s: str, color, scale: int = 1,
+             spacing: int = 1) -> None:
+        """画点阵文字（只支持数字、小数点、负号、空格）。"""
+        cx = x
+        for ch in s:
+            glyph = _FONT_3X5.get(ch)
+            if glyph:
+                for ry, row in enumerate(glyph):
+                    for rx, bit in enumerate(row):
+                        if bit == "1":
+                            for dy in range(scale):
+                                for dx in range(scale):
+                                    self.set(cx + rx * scale + dx,
+                                             y + ry * scale + dy, color)
+            cx += (3 + spacing) * scale
+
+    def text_right(self, x_right: int, y: int, s: str, color,
+                   scale: int = 1, spacing: int = 1) -> None:
+        self.text(x_right - self.text_width(s, scale, spacing), y, s, color,
+                  scale, spacing)
 
     def to_png(self) -> bytes:
         raw = bytearray()
